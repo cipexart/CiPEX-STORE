@@ -1,0 +1,8 @@
+{
+  "name": "CiPEX Stilo Art Store",
+  "description": "نظام إدارة وتتبع اللوحات الفنية بالقلم الجاف (ستيلو) للفنان CiPEX مع إصدار الفواتير وتقارير المبيعات والربط بجوجل شيت",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
