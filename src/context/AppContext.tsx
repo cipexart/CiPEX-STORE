@@ -210,71 +210,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.error('Server save error:', err));
   }, [artworks, sales, inventoryLogs, settings, role]);
 
-  // Load server stored data on mount (with Firestore fallback for static deployment)
+  // Load server / public sheet / firestore stored data concurrently on mount
   useEffect(() => {
-    fetch('/api/store/data')
+    let active = true;
+    const targetSheetId = settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4';
+
+    // 1. Immediately fetch from Public Google Sheet (fastest direct source for visitor)
+    clientPullAllFromSheet(null, targetSheetId)
+      .then((sheetData) => {
+        if (!active) return;
+        if (Array.isArray(sheetData.artworks) && sheetData.artworks.length > 0) {
+          const sanitized = sanitizeItems<Artwork>(sheetData.artworks);
+          setArtworks(sanitized);
+          if (Array.isArray(sheetData.sales) && sheetData.sales.length > 0) {
+            setSales(sanitizeItems<SaleInvoice>(sheetData.sales));
+          }
+          if (Array.isArray(sheetData.inventoryLogs) && sheetData.inventoryLogs.length > 0) {
+            setInventoryLogs(sanitizeItems<InventoryLog>(sheetData.inventoryLogs));
+          }
+          saveToFirestore({ artworks: sanitized, sales: sheetData.sales, inventoryLogs: sheetData.inventoryLogs, settings });
+        }
+      })
+      .catch((err) => console.warn('Public Sheet fetch warning:', err))
+      .finally(() => {
+        if (active) isServerLoaded.current = true;
+      });
+
+    // 2. Fetch from Firestore concurrently
+    loadFromFirestore().then((firestoreData) => {
+      if (!active || !firestoreData) return;
+      if (Array.isArray(firestoreData.artworks) && firestoreData.artworks.length > 0) {
+        setArtworks((prev) => (prev.length === 0 ? sanitizeItems<Artwork>(firestoreData.artworks) : prev));
+      }
+      if (Array.isArray(firestoreData.sales) && firestoreData.sales.length > 0) {
+        setSales((prev) => (prev.length === 0 ? sanitizeItems<SaleInvoice>(firestoreData.sales) : prev));
+      }
+      if (Array.isArray(firestoreData.inventoryLogs) && firestoreData.inventoryLogs.length > 0) {
+        setInventoryLogs((prev) => (prev.length === 0 ? sanitizeItems<InventoryLog>(firestoreData.inventoryLogs) : prev));
+      }
+    });
+
+    // 3. Fetch Express backend API in parallel with a fast 1s timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+
+    fetch('/api/store/data', { signal: controller.signal })
       .then((res) => {
-        if (!res.ok) throw new Error('Backend route not available');
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error('Backend route unavailable');
         return res.json();
       })
       .then((data) => {
-        if (data.success) {
-          if (data.config?.sheetId) {
-            setSettings((prev) => ({
-              ...prev,
-              sheetId: data.config.sheetId,
-              sheetUrl: data.config.sheetUrl || prev.sheetUrl,
-            }));
-            setSheetConnected(true);
+        if (!active || !data.success) return;
+        if (data.config?.sheetId) {
+          setSettings((prev) => ({
+            ...prev,
+            sheetId: data.config.sheetId,
+            sheetUrl: data.config.sheetUrl || prev.sheetUrl,
+          }));
+          setSheetConnected(true);
+        }
+        if (data.database) {
+          if (Array.isArray(data.database.artworks) && data.database.artworks.length > 0) {
+            setArtworks(sanitizeItems<Artwork>(data.database.artworks));
           }
-          if (data.database) {
-            if (Array.isArray(data.database.artworks) && data.database.artworks.length > 0) {
-              setArtworks(sanitizeItems<Artwork>(data.database.artworks));
-            } else {
-              setArtworks((prev) => (prev.length > 0 ? prev : INITIAL_ARTWORKS));
-            }
-            if (Array.isArray(data.database.sales) && data.database.sales.length > 0) {
-              setSales(sanitizeItems<SaleInvoice>(data.database.sales));
-            }
-            if (Array.isArray(data.database.inventoryLogs) && data.database.inventoryLogs.length > 0) {
-              setInventoryLogs(sanitizeItems<InventoryLog>(data.database.inventoryLogs));
-            }
+          if (Array.isArray(data.database.sales) && data.database.sales.length > 0) {
+            setSales(sanitizeItems<SaleInvoice>(data.database.sales));
+          }
+          if (Array.isArray(data.database.inventoryLogs) && data.database.inventoryLogs.length > 0) {
+            setInventoryLogs(sanitizeItems<InventoryLog>(data.database.inventoryLogs));
           }
         }
       })
-      .catch(async (err) => {
-        console.warn('Backend unavailable, loading from Firestore fallback:', err);
-        let hasData = false;
-        const firestoreData = await loadFromFirestore();
-        if (firestoreData) {
-          if (Array.isArray(firestoreData.artworks) && firestoreData.artworks.length > 0) {
-            setArtworks(sanitizeItems<Artwork>(firestoreData.artworks));
-            hasData = true;
-          }
-          if (Array.isArray(firestoreData.sales) && firestoreData.sales.length > 0) {
-            setSales(sanitizeItems<SaleInvoice>(firestoreData.sales));
-          }
-          if (Array.isArray(firestoreData.inventoryLogs) && firestoreData.inventoryLogs.length > 0) {
-            setInventoryLogs(sanitizeItems<InventoryLog>(firestoreData.inventoryLogs));
-          }
-        }
-
-        // Try public sheet pull for visitors or static deployment
-        const targetSheetId = settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4';
-        try {
-          const sheetData = await clientPullAllFromSheet(null, targetSheetId);
-          if (Array.isArray(sheetData.artworks) && sheetData.artworks.length > 0) {
-            const sanitized = sanitizeItems<Artwork>(sheetData.artworks);
-            setArtworks(sanitized);
-            saveToFirestore({ artworks: sanitized, sales: sheetData.sales, inventoryLogs: sheetData.inventoryLogs, settings });
-          }
-        } catch (sheetErr) {
-          console.warn('Public Google Sheet fetch on mount warning:', sheetErr);
-        }
-      })
-      .finally(() => {
-        isServerLoaded.current = true;
+      .catch(() => {
+        // Ignored for static sites like GitHub Pages
       });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, []);
 
   // Init Google Firebase Auth listener & Admin email check
