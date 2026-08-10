@@ -11,7 +11,7 @@ import { PenTool, Award, ShieldCheck } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { activeTab, setActiveTab, settings, role, setRole } = useApp();
-  const [showLoginPage, setShowLoginPage] = useState(false);
+  const [showLoginPage, setShowLoginPage] = useState(true);
 
   const handleVisitorEnter = () => {
     setRole('visitor');

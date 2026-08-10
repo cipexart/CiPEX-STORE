@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShieldCheck, Eye, Sparkles, KeyRound, Palette, MapPin, Phone, FileSpreadsheet, CheckCircle, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Eye, Sparkles, Palette, MapPin, Phone, CheckCircle, ArrowLeft, PenTool, Award, Clock, Layers } from 'lucide-react';
 
 interface Props {
   onContinueAsVisitor: () => void;
@@ -8,16 +8,8 @@ interface Props {
 }
 
 export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess }) => {
-  const { handleGoogleLogin, googleUser, unlockAdmin, settings, role } = useApp();
-  const [pinInput, setPinInput] = useState('');
+  const { handleGoogleLogin, settings } = useApp();
   const [loading, setLoading] = useState(false);
-
-  const handleAdminPinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (unlockAdmin(pinInput)) {
-      onLoginSuccess();
-    }
-  };
 
   const onGoogleClick = async () => {
     setLoading(true);
@@ -65,7 +57,7 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
       </header>
 
       {/* Main Login Options Container */}
-      <main className="max-w-4xl w-full mx-auto my-auto py-10 relative z-10 space-y-8">
+      <main className="max-w-5xl w-full mx-auto my-auto py-8 relative z-10 space-y-8">
         {/* Title and Intro */}
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-amber-400 text-xs font-semibold">
@@ -82,7 +74,7 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
 
         {/* 2 Main Choice Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Option 1: Admin Entry */}
+          {/* Option 1: Admin Entry & Store Highlights Card */}
           <div className="bg-gradient-to-b from-zinc-900/90 to-zinc-950 border border-amber-500/30 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col justify-between space-y-6">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-amber-300" />
 
@@ -104,21 +96,38 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
                 </p>
               </div>
 
-              {/* Active Sheet Badge */}
-              <div className="p-3 bg-zinc-950 rounded-2xl border border-zinc-800 text-xs space-y-1">
-                <div className="flex items-center justify-between text-zinc-300">
-                  <span className="flex items-center gap-1.5 font-bold">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                    قاعدة البيانات المربوطة:
-                  </span>
-                  <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    CiPEX STORE
-                  </span>
+              {/* Unique Stilo Art & Admin Features Highlight Card */}
+              <div className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs border-b border-zinc-800 pb-2">
+                  <PenTool className="w-4 h-4" />
+                  <span>مميزات متجر وفن رسم الستيلو (CiPEX Stilo Art):</span>
                 </div>
-                <p className="text-[11px] text-zinc-500 font-mono truncate">
-                  ID: {settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4'}
-                </p>
+
+                <div className="grid grid-cols-1 gap-2.5 text-xs text-zinc-300">
+                  <div className="flex items-start gap-2">
+                    <Award className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-white block">تقنية القلم الجاف (Stilo Art):</span>
+                      <span className="text-[11px] text-zinc-400 leading-snug">رسم يدوي خالص وبصمة فنية دقيقة لا تقبل الخطأ بآلاف اللمسات المتناسقة.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-white block">ساعات عمل وإتقان استثنائية:</span>
+                      <span className="text-[11px] text-zinc-400 leading-snug">تتطلب كل لوحة عشرات الساعات من التظليل والتحكم لتأمين تفاصيل مبهرة.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <Layers className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-white block">خامات فاخرة وشهادة أصالة:</span>
+                      <span className="text-[11px] text-zinc-400 leading-snug">ورق كرتوني 300g مع شهادات أصالة موظفة ومسجلة برقم تسلسلي.</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -138,27 +147,6 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
                 </svg>
                 <span>{loading ? 'جاري الاتصال بـ Google...' : 'تسجيل الدخول بـ Google (artcipex@gmail.com)'}</span>
               </button>
-
-              {/* Alternative PIN Login */}
-              <form onSubmit={handleAdminPinSubmit} className="pt-2">
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    maxLength={6}
-                    value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="رمز PIN الأدمن (الافتراضي 1234)"
-                    className="flex-1 px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-center text-amber-300 focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    <span>تأكيد</span>
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
 
@@ -214,3 +202,4 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
     </div>
   );
 };
+

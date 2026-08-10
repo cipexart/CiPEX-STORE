@@ -43,8 +43,6 @@ export const SettingsPage: React.FC = () => {
     verifyGoogleSheet,
   } = useApp();
 
-  const [pinInput, setPinInput] = useState('');
-  const [newPin, setNewPin] = useState('');
   const [sheetIdInput, setSheetIdInput] = useState(settings.sheetId);
 
   // Store settings form state
@@ -56,24 +54,6 @@ export const SettingsPage: React.FC = () => {
   const [address, setAddress] = useState(settings.address);
   const [currency, setCurrency] = useState(settings.currency);
   const [invoiceFooterAr, setInvoiceFooterAr] = useState(settings.invoiceFooterAr);
-
-  const handlePinUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (unlockAdmin(pinInput)) {
-      setPinInput('');
-    }
-  };
-
-  const handlePinChange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPin || newPin.trim().length < 4) {
-      alert('يرجى إدخال رمز PIN مكون من 4 أرقام على الأقل');
-      return;
-    }
-    updateSettings({ adminPin: newPin.trim() });
-    setNewPin('');
-    alert('تم تغيير رمز PIN الخاص بالأدمن بنجاح!');
-  };
 
   const handleStoreSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,45 +162,12 @@ export const SettingsPage: React.FC = () => {
               <li className="flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-amber-400" /> مزامنة وتخزين كامل الداتا في Google Sheet واحد</li>
             </ul>
 
-            {role === 'visitor' ? (
-              <form onSubmit={handlePinUnlock} className="space-y-3 pt-2 border-t border-zinc-800">
-                <label className="block text-xs font-semibold text-zinc-300">أدخل رمز PIN للأدمن للتفعيل:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="افتراضي: 1234"
-                    className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-sm font-mono text-amber-400 text-center focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-500/20"
-                  >
-                    تأكيد PIN
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handlePinChange} className="space-y-3 pt-2 border-t border-zinc-800">
-                <label className="block text-xs font-semibold text-zinc-300">تغيير رمز PIN الأدمن الحالي:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="رمز جديد (4 أرقام)"
-                    className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-sm font-mono text-amber-400 text-center focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-semibold rounded-xl text-xs border border-zinc-700"
-                  >
-                    حفظ الرمز
-                  </button>
-                </div>
-              </form>
-            )}
+            <div className="pt-3 border-t border-zinc-800 text-xs">
+              <p className="text-zinc-400">
+                يتم التثبت من صلاحية الأدمن تلقائياً حصراً عبر تسجيل الدخول بـ Google بحساب البريد الإلكتروني:
+                <span className="block font-mono text-amber-400 font-bold mt-1 text-sm">artcipex@gmail.com</span>
+              </p>
+            </div>
           </div>
         </div>
       </div>

@@ -340,11 +340,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const unlockAdmin = (pin: string): boolean => {
-    if (pin === settings.adminPin || pin === '1234') {
+    if (googleUser?.email === 'artcipex@gmail.com') {
       setRole('admin');
       return true;
     }
-    showToast('رمز PIN غير صحيح!', 'error');
+    showToast('صلاحية الأدمن مقتصرة حصراً على البريد الإلكتروني artcipex@gmail.com عبر Google', 'error');
     return false;
   };
 
@@ -546,7 +546,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res) {
         setGoogleUser(res.user);
         setGoogleToken(res.accessToken);
-        showToast(`أهلاً بك ${res.user.displayName || ''}! تم الربط مع حساب Google بنجاح.`, 'success');
+        if (res.user.email === 'artcipex@gmail.com') {
+          setRoleState('admin');
+          showToast(`أهلاً بك الأدمن الرئيسي (${res.user.email})! تم تفعيل الصلاحيات الكاملة لشيت CiPEX STORE.`, 'success');
+        } else {
+          setRoleState('visitor');
+          showToast(`تم الدخول بـ ${res.user.email}. تنبيه: صلاحيات الأدمن محصورة لـ artcipex@gmail.com. تم الدخول كزائر.`, 'info');
+        }
         // Auto verify sheet if sheet ID exists
         if (settings.sheetId) {
           verifyGoogleSheet(settings.sheetId);

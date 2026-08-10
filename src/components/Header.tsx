@@ -35,17 +35,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
     logoutRole,
   } = useApp();
 
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-
-  const handlePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (unlockAdmin(pinInput)) {
-      setShowPinModal(false);
-      setPinInput('');
-    }
-  };
-
   const handleLogout = async () => {
     await logoutRole();
     if (onOpenLoginPage) {
@@ -214,53 +203,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
           })}
         </div>
       </div>
-
-      {/* Admin Unlock PIN Modal */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-right">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
-              <Lock className="w-6 h-6" />
-            </div>
-
-            <h3 className="text-lg font-bold text-white mb-1">تسجيل دخول الأدمن</h3>
-            <p className="text-xs text-zinc-400 mb-6">
-              أدخل رمز PIN للصلاحيات الكاملة (إضافة، تعديل، حذف اللوحات وإصدار الفواتير)
-            </p>
-
-            <form onSubmit={handlePinSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">رمز PIN الأدمن</label>
-                <input
-                  type="password"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="افتراضي: 1234"
-                  autoFocus
-                  required
-                  className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-xl font-mono text-amber-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20"
-                >
-                  تأكيد الدخول
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold rounded-xl transition-all"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </header>
   );
 };
