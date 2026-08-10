@@ -253,21 +253,34 @@ export async function clientPushAllToSheet(
 }
 
 export async function clientPullAllFromSheet(accessToken: string | null, spreadsheetId: string) {
-  if (!accessToken) {
-    throw new Error("تسجيل الدخول بـ Google مطلوب لقراءة بيانات الشيت");
+  let artworkValues: any[] = [];
+  let salesValues: any[] = [];
+  let logValues: any[] = [];
+
+  if (accessToken) {
+    try {
+      const res = await sheetsApiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?ranges=Artworks!A2:N1000&ranges=Sales_Invoices!A2:N1000&ranges=Inventory_Log!A2:F1000`,
+        "GET",
+        null,
+        accessToken
+      );
+      const valueRanges = res.valueRanges || [];
+      artworkValues = valueRanges[0]?.values || [];
+      salesValues = valueRanges[1]?.values || [];
+      logValues = valueRanges[2]?.values || [];
+    } catch (apiErr) {
+      console.warn("Sheets API failed, attempting public CSV fetch fallback...", apiErr);
+      artworkValues = await fetchPublicSheetCSV(spreadsheetId, "Artworks");
+      salesValues = await fetchPublicSheetCSV(spreadsheetId, "Sales_Invoices").catch(() => []);
+      logValues = await fetchPublicSheetCSV(spreadsheetId, "Inventory_Log").catch(() => []);
+    }
+  } else {
+    // Visitor mode without accessToken: pull directly from public gviz endpoint
+    artworkValues = await fetchPublicSheetCSV(spreadsheetId, "Artworks");
+    salesValues = await fetchPublicSheetCSV(spreadsheetId, "Sales_Invoices").catch(() => []);
+    logValues = await fetchPublicSheetCSV(spreadsheetId, "Inventory_Log").catch(() => []);
   }
-
-  const res = await sheetsApiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?ranges=Artworks!A2:N1000&ranges=Sales_Invoices!A2:N1000&ranges=Inventory_Log!A2:F1000`,
-    "GET",
-    null,
-    accessToken
-  );
-
-  const valueRanges = res.valueRanges || [];
-  const artworkValues = valueRanges[0]?.values || [];
-  const salesValues = valueRanges[1]?.values || [];
-  const logValues = valueRanges[2]?.values || [];
 
   const artworks = artworkValues
     .filter((row: any[]) => row && row[0])
@@ -320,4 +333,52 @@ export async function clientPullAllFromSheet(accessToken: string | null, spreads
     }));
 
   return { artworks, sales, inventoryLogs };
+}
+
+function parseCSV(text: string): string[][] {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let inQuotes = false;
+  let current = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      row.push(current);
+      lines.push(row);
+      row = [];
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current || row.length > 0) {
+    row.push(current);
+    lines.push(row);
+  }
+  return lines;
+}
+
+async function fetchPublicSheetCSV(spreadsheetId: string, sheetName: string): Promise<string[][]> {
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const csvText = await res.text();
+  const rows = parseCSV(csvText);
+  return rows.slice(1).filter(r => r.length > 0 && r[0]);
 }

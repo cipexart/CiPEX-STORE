@@ -244,10 +244,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(async (err) => {
         console.warn('Backend unavailable, loading from Firestore fallback:', err);
+        let hasData = false;
         const firestoreData = await loadFromFirestore();
         if (firestoreData) {
           if (Array.isArray(firestoreData.artworks) && firestoreData.artworks.length > 0) {
             setArtworks(sanitizeItems<Artwork>(firestoreData.artworks));
+            hasData = true;
           }
           if (Array.isArray(firestoreData.sales) && firestoreData.sales.length > 0) {
             setSales(sanitizeItems<SaleInvoice>(firestoreData.sales));
@@ -255,6 +257,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(firestoreData.inventoryLogs) && firestoreData.inventoryLogs.length > 0) {
             setInventoryLogs(sanitizeItems<InventoryLog>(firestoreData.inventoryLogs));
           }
+        }
+
+        // Try public sheet pull for visitors or static deployment
+        const targetSheetId = settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4';
+        try {
+          const sheetData = await clientPullAllFromSheet(null, targetSheetId);
+          if (Array.isArray(sheetData.artworks) && sheetData.artworks.length > 0) {
+            const sanitized = sanitizeItems<Artwork>(sheetData.artworks);
+            setArtworks(sanitized);
+            saveToFirestore({ artworks: sanitized, sales: sheetData.sales, inventoryLogs: sheetData.inventoryLogs, settings });
+          }
+        } catch (sheetErr) {
+          console.warn('Public Google Sheet fetch on mount warning:', sheetErr);
         }
       })
       .finally(() => {
@@ -660,6 +675,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(data.artworks)) setArtworks(sanitizeItems<Artwork>(data.artworks));
       if (Array.isArray(data.sales)) setSales(sanitizeItems<SaleInvoice>(data.sales));
       if (Array.isArray(data.inventoryLogs)) setInventoryLogs(sanitizeItems<InventoryLog>(data.inventoryLogs));
+
+      saveToFirestore({
+        artworks: Array.isArray(data.artworks) ? sanitizeItems<Artwork>(data.artworks) : artworks,
+        sales: Array.isArray(data.sales) ? sanitizeItems<SaleInvoice>(data.sales) : sales,
+        inventoryLogs: Array.isArray(data.inventoryLogs) ? sanitizeItems<InventoryLog>(data.inventoryLogs) : inventoryLogs,
+        settings
+      });
 
       setSheetConnected(true);
       showToast(data.message || 'تم جلب البيانات بنجاح من Google Sheet!', 'success');
