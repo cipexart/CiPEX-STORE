@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { Artwork, SaleInvoice, InventoryLog, StoreSettings, UserRole, ActiveTab, ArtworkStatus } from '../types';
 import { INITIAL_ARTWORKS, INITIAL_SALES, INITIAL_LOGS, INITIAL_SETTINGS } from '../data/initialArtworks';
@@ -181,14 +181,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('cipex_role', role);
   }, [role]);
 
-  // Sync state to backend store database for visitors
+  const isServerLoaded = useRef(false);
+
+  // Sync state to backend store database when modified by admin
   useEffect(() => {
+    if (!isServerLoaded.current || role !== 'admin') return;
+
     fetch('/api/store/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ artworks, sales, inventoryLogs, settings }),
     }).catch((err) => console.error('Server save error:', err));
-  }, [artworks, sales, inventoryLogs, settings]);
+  }, [artworks, sales, inventoryLogs, settings, role]);
 
   // Load server stored data on mount
   useEffect(() => {
@@ -205,13 +209,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setSheetConnected(true);
           }
           if (data.database) {
-            if (Array.isArray(data.database.artworks)) setArtworks(sanitizeItems<Artwork>(data.database.artworks));
-            if (Array.isArray(data.database.sales)) setSales(sanitizeItems<SaleInvoice>(data.database.sales));
-            if (Array.isArray(data.database.inventoryLogs)) setInventoryLogs(sanitizeItems<InventoryLog>(data.database.inventoryLogs));
+            if (Array.isArray(data.database.artworks) && data.database.artworks.length > 0) {
+              setArtworks(sanitizeItems<Artwork>(data.database.artworks));
+            }
+            if (Array.isArray(data.database.sales) && data.database.sales.length > 0) {
+              setSales(sanitizeItems<SaleInvoice>(data.database.sales));
+            }
+            if (Array.isArray(data.database.inventoryLogs) && data.database.inventoryLogs.length > 0) {
+              setInventoryLogs(sanitizeItems<InventoryLog>(data.database.inventoryLogs));
+            }
           }
         }
       })
-      .catch((err) => console.error('Error fetching store data:', err));
+      .catch((err) => console.error('Error fetching store data:', err))
+      .finally(() => {
+        isServerLoaded.current = true;
+      });
   }, []);
 
   // Init Google Firebase Auth listener & Admin email check

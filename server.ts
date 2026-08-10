@@ -51,19 +51,6 @@ function saveStoreConfig(config: Partial<ServerStoreConfig>) {
   }
 }
 
-function filterDemoItems(items: any[]) {
-  if (!Array.isArray(items)) return [];
-  const DEMO_IDS = ['art-stilo-01', 'art-stilo-02', 'art-stilo-03', 'art-stilo-04', 'art-stilo-05', 'art-stilo-06', 'inv-001', 'INV-CIPEX-2024-001', 'log-001', 'log-002', 'log-003'];
-  return items.filter((item) => {
-    if (!item) return false;
-    if (DEMO_IDS.includes(item.id) || DEMO_IDS.includes(item.invoiceNumber) || DEMO_IDS.includes(item.artworkId)) return false;
-    if (typeof item.certificateNumber === 'string' && item.certificateNumber.includes('CIPEX-STILO-2024-00')) return false;
-    if (item.customerName === 'الأستاذ كريم بناني' || item.customerName === 'كريم بناني') return false;
-    if (typeof item.titleAr === 'string' && (item.titleAr.includes('شموخ الخيل') || item.titleAr.includes('القصبة العتيق') || item.titleAr.includes('نظرة الصقر'))) return false;
-    return true;
-  });
-}
-
 function getStoreDatabase() {
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -72,9 +59,9 @@ function getStoreDatabase() {
       if (parsed) {
         return {
           ...parsed,
-          artworks: filterDemoItems(parsed.artworks),
-          sales: filterDemoItems(parsed.sales),
-          inventoryLogs: filterDemoItems(parsed.inventoryLogs),
+          artworks: Array.isArray(parsed.artworks) ? parsed.artworks : [],
+          sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+          inventoryLogs: Array.isArray(parsed.inventoryLogs) ? parsed.inventoryLogs : [],
         };
       }
     }
@@ -252,13 +239,25 @@ app.get("/api/store/data", async (_req, res) => {
 // POST Admin Store Data Persistence
 app.post("/api/store/save", (req, res) => {
   const { artworks, sales, inventoryLogs, settings } = req.body;
+  const currentDb = getStoreDatabase();
+
+  const finalArtworks = (Array.isArray(artworks) && artworks.length > 0) ? artworks : currentDb.artworks;
+  const finalSales = (Array.isArray(sales) && sales.length > 0) ? sales : currentDb.sales;
+  const finalLogs = (Array.isArray(inventoryLogs) && inventoryLogs.length > 0) ? inventoryLogs : currentDb.inventoryLogs;
+
   if (settings && settings.sheetId) {
     saveStoreConfig({
       sheetId: settings.sheetId,
       sheetUrl: settings.sheetUrl || `https://docs.google.com/spreadsheets/d/${settings.sheetId}`,
     });
   }
-  saveStoreDatabase({ artworks, sales, inventoryLogs, settings, updatedAt: new Date().toISOString() });
+  saveStoreDatabase({
+    artworks: finalArtworks,
+    sales: finalSales,
+    inventoryLogs: finalLogs,
+    settings,
+    updatedAt: new Date().toISOString()
+  });
   res.json({ success: true, message: "تم حفظ بيانات المتجر وتحديث قاعدة بيانات زوار المعرض بنجاح!" });
 });
 
