@@ -60,10 +60,6 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
       <main className="max-w-5xl w-full mx-auto my-auto py-8 relative z-10 space-y-8">
         {/* Title and Intro */}
         <div className="text-center space-y-3 max-w-2xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-amber-400 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>نظام إدارة معارض اللوحات ومزامنة جوجل شيت</span>
-          </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-serif tracking-tight leading-tight">
             مرحباً بك في منصة <span className="text-amber-400">CiPEX STORE</span>
           </h2>
