@@ -78,7 +78,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load state from localStorage or initial constants
   const [artworks, setArtworks] = useState<Artwork[]>(() => {
     const saved = localStorage.getItem('cipex_artworks');
-    return saved ? sanitizeItems<Artwork>(JSON.parse(saved)) : [];
+    if (saved) {
+      try {
+        const parsed = sanitizeItems<Artwork>(JSON.parse(saved));
+        if (parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return INITIAL_ARTWORKS;
   });
 
   const [sales, setSales] = useState<SaleInvoice[]>(() => {
@@ -211,6 +219,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.database) {
             if (Array.isArray(data.database.artworks) && data.database.artworks.length > 0) {
               setArtworks(sanitizeItems<Artwork>(data.database.artworks));
+            } else {
+              setArtworks((prev) => (prev.length > 0 ? prev : INITIAL_ARTWORKS));
             }
             if (Array.isArray(data.database.sales) && data.database.sales.length > 0) {
               setSales(sanitizeItems<SaleInvoice>(data.database.sales));
