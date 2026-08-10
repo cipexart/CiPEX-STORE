@@ -3,6 +3,12 @@ import { User } from 'firebase/auth';
 import { Artwork, SaleInvoice, InventoryLog, StoreSettings, UserRole, ActiveTab, ArtworkStatus } from '../types';
 import { INITIAL_ARTWORKS, INITIAL_SALES, INITIAL_LOGS, INITIAL_SETTINGS } from '../data/initialArtworks';
 import { initAuth, googleSignIn, logoutGoogle, getAccessToken } from '../services/firebaseAuth';
+import {
+  clientVerifyOrCreateSheet,
+  clientPushAllToSheet,
+  clientPullAllFromSheet
+} from '../services/googleSheetsClient';
+import { saveToFirestore, loadFromFirestore } from '../services/firebaseFirestore';
 
 interface Toast {
   id: string;
@@ -191,9 +197,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isServerLoaded = useRef(false);
 
-  // Sync state to backend store database when modified by admin
+  // Sync state to backend store database & Firestore when modified by admin
   useEffect(() => {
     if (!isServerLoaded.current || role !== 'admin') return;
+
+    saveToFirestore({ artworks, sales, inventoryLogs, settings });
 
     fetch('/api/store/save', {
       method: 'POST',
@@ -202,10 +210,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.error('Server save error:', err));
   }, [artworks, sales, inventoryLogs, settings, role]);
 
-  // Load server stored data on mount
+  // Load server stored data on mount (with Firestore fallback for static deployment)
   useEffect(() => {
     fetch('/api/store/data')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Backend route not available');
+        return res.json();
+      })
       .then((data) => {
         if (data.success) {
           if (data.config?.sheetId) {
@@ -231,7 +242,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       })
-      .catch((err) => console.error('Error fetching store data:', err))
+      .catch(async (err) => {
+        console.warn('Backend unavailable, loading from Firestore fallback:', err);
+        const firestoreData = await loadFromFirestore();
+        if (firestoreData) {
+          if (Array.isArray(firestoreData.artworks) && firestoreData.artworks.length > 0) {
+            setArtworks(sanitizeItems<Artwork>(firestoreData.artworks));
+          }
+          if (Array.isArray(firestoreData.sales) && firestoreData.sales.length > 0) {
+            setSales(sanitizeItems<SaleInvoice>(firestoreData.sales));
+          }
+          if (Array.isArray(firestoreData.inventoryLogs) && firestoreData.inventoryLogs.length > 0) {
+            setInventoryLogs(sanitizeItems<InventoryLog>(firestoreData.inventoryLogs));
+          }
+        }
+      })
       .finally(() => {
         isServerLoaded.current = true;
       });
@@ -521,17 +546,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       setSyncing(true);
-      const res = await fetch('/api/sheets/verify-or-create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ spreadsheetId: targetSheetId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'خطأ في الاتصال');
+      let data;
+      try {
+        const res = await fetch('/api/sheets/verify-or-create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ spreadsheetId: targetSheetId }),
+        });
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        data = await res.json();
+      } catch (backendErr) {
+        console.warn('Backend endpoint unavailable, falling back to client-side Google Sheets API:', backendErr);
+        data = await clientVerifyOrCreateSheet(token, targetSheetId);
+      }
 
       setSettings((prev) => ({
         ...prev,
@@ -563,26 +593,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       setSyncing(true);
-      const res = await fetch('/api/sheets/push-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          spreadsheetId: settings.sheetId,
+      let data;
+      try {
+        const res = await fetch('/api/sheets/push-all', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            spreadsheetId: settings.sheetId,
+            artworks,
+            sales,
+            inventoryLogs,
+            settings,
+          }),
+        });
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        data = await res.json();
+      } catch (backendErr) {
+        console.warn('Backend endpoint unavailable, pushing via client-side Google Sheets API:', backendErr);
+        data = await clientPushAllToSheet(token, settings.sheetId, {
           artworks,
           sales,
           inventoryLogs,
           settings,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'فشلت المزامنة');
+        });
+      }
 
       setSheetConnected(true);
-      showToast(data.message || 'تم حفض ومزامنة جميع البيانات في Google Sheet!', 'success');
+      showToast(data.message || 'تم حفظ ومزامنة جميع البيانات في Google Sheet!', 'success');
     } catch (err: any) {
       showToast('خطأ المزامنة: ' + err.message, 'error');
     } finally {
@@ -596,21 +636,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       setSyncing(true);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      let data;
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await fetch('/api/sheets/pull-all', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ spreadsheetId: sheetId }),
+        });
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        data = await res.json();
+      } catch (backendErr) {
+        console.warn('Backend endpoint unavailable, pulling via client-side Google Sheets API:', backendErr);
+        data = await clientPullAllFromSheet(token, sheetId);
       }
-
-      const res = await fetch('/api/sheets/pull-all', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ spreadsheetId: sheetId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'فشلت المزامنة');
 
       if (Array.isArray(data.artworks)) setArtworks(sanitizeItems<Artwork>(data.artworks));
       if (Array.isArray(data.sales)) setSales(sanitizeItems<SaleInvoice>(data.sales));
