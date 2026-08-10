@@ -15,6 +15,7 @@ import {
   Calendar,
   PenTool,
   Edit,
+  Heart,
 } from 'lucide-react';
 
 interface Props {
@@ -30,12 +31,13 @@ export const ArtworkDetailModal: React.FC<Props> = ({
   onOrderClick,
   onEditClick,
 }) => {
-  const { role, settings } = useApp();
+  const { role, settings, toggleFavorite, isFavorite } = useApp();
 
   if (!artwork) return null;
 
   const isAvailable = artwork.status === 'available';
   const isReserved = artwork.status === 'reserved';
+  const isFav = isFavorite(artwork.id);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-md overflow-y-auto">
@@ -169,6 +171,21 @@ export const ArtworkDetailModal: React.FC<Props> = ({
 
           {/* Action Buttons */}
           <div className="pt-4 border-t border-zinc-800 flex gap-3">
+            {role === 'visitor' && (
+              <button
+                type="button"
+                onClick={() => toggleFavorite(artwork.id)}
+                className={`p-3.5 rounded-2xl border transition-all flex items-center justify-center ${
+                  isFav
+                    ? 'bg-rose-500 text-white border-rose-400'
+                    : 'bg-zinc-800 text-zinc-300 hover:text-rose-400 border-zinc-700'
+                }`}
+                title={isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+              >
+                <Heart className={`w-5 h-5 ${isFav ? 'fill-current' : ''}`} />
+              </button>
+            )}
+
             {isAvailable ? (
               <button
                 onClick={() => {

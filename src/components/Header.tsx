@@ -13,6 +13,8 @@ import {
   CloudOff,
   RefreshCw,
   PenTool,
+  Heart,
+  LogOut,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -29,7 +31,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
     sheetConnected,
     syncing,
     syncWithGoogleSheets,
-    googleUser,
+    favorites,
+    logoutRole,
   } = useApp();
 
   const [showPinModal, setShowPinModal] = useState(false);
@@ -43,16 +46,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
     }
   };
 
-  const allNavItems: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+  const handleLogout = async () => {
+    await logoutRole();
+    if (onOpenLoginPage) {
+      onOpenLoginPage();
+    }
+  };
+
+  const allNavItems: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'catalog', label: 'اللوحات الفنية المعروضة', icon: Palette },
+    { id: 'favorites', label: 'المفضلة', icon: Heart, badge: favorites.length },
     { id: 'invoices', label: 'المبيعات والفواتير', icon: Receipt },
     { id: 'analytics', label: 'تقارير الأداء والمخزون', icon: BarChart3 },
     { id: 'settings', label: 'الإعدادات والربط', icon: Settings },
   ];
 
   const navItems = role === 'admin'
-    ? allNavItems
-    : allNavItems.filter((item) => item.id === 'catalog');
+    ? allNavItems.filter((item) => item.id !== 'favorites')
+    : allNavItems.filter((item) => item.id === 'catalog' || item.id === 'favorites');
 
   return (
     <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-800/80 text-zinc-100 transition-all">
@@ -85,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 relative ${
                     isActive
                       ? 'bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/20'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
@@ -93,6 +104,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
                 >
                   <Icon className="w-4 h-4" />
                   <span>{item.label}</span>
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span
+                      className={`px-1.5 py-0.5 text-[10px] font-extrabold rounded-full ${
+                        isActive
+                          ? 'bg-zinc-950 text-amber-400'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -100,30 +122,32 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
 
           {/* Quick Actions & Role Badge */}
           <div className="flex items-center gap-3">
-            {/* Google Sheets Sync Badge */}
-            <button
-              onClick={syncWithGoogleSheets}
-              disabled={syncing}
-              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                sheetConnected
-                  ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
-              title={sheetConnected ? 'متصل بجوجل شيت - انقر للمزامنة' : 'غير متصل بجوجل شيت - انقر للربط'}
-            >
-              {syncing ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-              ) : sheetConnected ? (
-                <CloudCheck className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <CloudOff className="w-3.5 h-3.5 text-zinc-500" />
-              )}
-              <span className="hidden lg:inline">
-                {syncing ? 'جاري المزامنة...' : sheetConnected ? 'مزامنة مع Google Sheet' : 'ربط Google Sheet'}
-              </span>
-            </button>
+            {/* Google Sheets Sync Badge (Admin only) */}
+            {role === 'admin' && (
+              <button
+                onClick={syncWithGoogleSheets}
+                disabled={syncing}
+                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  sheetConnected
+                    ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                }`}
+                title={sheetConnected ? 'متصل بجوجل شيت - انقر للمزامنة' : 'غير متصل بجوجل شيت - انقر للربط'}
+              >
+                {syncing ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                ) : sheetConnected ? (
+                  <CloudCheck className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <CloudOff className="w-3.5 h-3.5 text-zinc-500" />
+                )}
+                <span className="hidden lg:inline">
+                  {syncing ? 'جاري المزامنة...' : sheetConnected ? 'مزامنة مع Google Sheet' : 'ربط Google Sheet'}
+                </span>
+              </button>
+            )}
 
-            {/* Role & Login Switcher Pill */}
+            {/* Role & Logout Controls */}
             {role === 'admin' ? (
               <div className="flex items-center gap-2">
                 <button
@@ -134,27 +158,29 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
                   <span className="hidden sm:inline">الأدمن (artcipex@gmail.com)</span>
                   <span className="sm:hidden">أدمن</span>
                 </button>
-                {onOpenLoginPage && (
-                  <button
-                    onClick={onOpenLoginPage}
-                    className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 rounded-xl text-xs hover:bg-zinc-800 transition-all"
-                    title="تبديل الحساب / صفحة تسجيل الدخول"
-                  >
-                    تبديل
-                  </button>
-                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-300 rounded-xl text-xs font-bold transition-all"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">تسجيل الخروج</span>
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-medium">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline">زائر المعرض</span>
+                  <span className="sm:hidden">زائر</span>
+                </div>
                 <button
-                  onClick={onOpenLoginPage || (() => setShowPinModal(true))}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs font-medium transition-all"
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+                  title="تسجيل الخروج واختيار الصلاحية"
                 >
-                  <UserCheck className="w-4 h-4 text-zinc-400" />
-                  <span>وضع الزائر</span>
-                  <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md text-[10px] font-bold">
-                    دخول الأدمن
-                  </span>
+                  <LogOut className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>تسجيل الخروج</span>
                 </button>
               </div>
             )}
@@ -170,11 +196,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLoginPage }) => {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap ${
+                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap relative ${
                   isActive ? 'text-amber-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <div className="relative">
+                  <Icon className="w-4 h-4" />
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold px-1 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
                 <span>{item.label.split(' ')[0]}</span>
               </button>
             );

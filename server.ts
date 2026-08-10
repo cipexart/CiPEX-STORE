@@ -383,6 +383,7 @@ app.post("/api/sheets/push-all", async (req, res) => {
       ["artistName", settings?.artistName || "الفنان CiPEX"],
       ["studioName", settings?.studioName || "CiPEX STORE - متجر واستوديو اللوحات الجافة (Stilo Art)"],
       ["phone", settings?.phone || "0699745621"],
+      ["whatsappPhone", settings?.whatsappPhone || "0699745621"],
       ["email", settings?.email || "artcipex@gmail.com"],
       ["address", settings?.address || "الدار البيضاء - المغرب"],
       ["currency", settings?.currency || "د.م (MAD)"],

@@ -53,6 +53,7 @@ export interface StoreSettings {
   artistName: string;
   studioName: string;
   phone: string;
+  whatsappPhone?: string; // Designated WhatsApp number for purchase requests (e.g. 0699745621)
   email: string;
   address: string;
   currency: string;
@@ -66,4 +67,4 @@ export interface StoreSettings {
 
 export type UserRole = 'admin' | 'visitor';
 
-export type ActiveTab = 'catalog' | 'invoices' | 'analytics' | 'settings';
+export type ActiveTab = 'catalog' | 'favorites' | 'invoices' | 'analytics' | 'settings';

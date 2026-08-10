@@ -32,15 +32,22 @@ interface AppContextType {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   removeToast: (id: string) => void;
 
+  // Favorites state
+  favorites: string[];
+  toggleFavorite: (artworkId: string) => void;
+  isFavorite: (artworkId: string) => boolean;
+
   // Actions
   unlockAdmin: (pin: string) => boolean;
   setRole: (role: UserRole) => void;
+  logoutRole: () => Promise<void>;
   addArtwork: (art: Omit<Artwork, 'id' | 'createdAt'>) => void;
   updateArtwork: (art: Artwork) => void;
   deleteArtwork: (id: string) => void;
   changeArtworkStatus: (id: string, status: ArtworkStatus) => void;
   createInvoiceAndRecordSale: (sale: Omit<SaleInvoice, 'id' | 'invoiceNumber'>) => SaleInvoice;
   submitPurchaseRequest: (artworkId: string, customerName: string, customerPhone: string, customerAddress: string, notes?: string) => void;
+  updateSale: (sale: SaleInvoice) => void;
   deleteSale: (id: string) => void;
   updateSettings: (newSettings: Partial<StoreSettings>) => void;
   clearAllData: () => void;
@@ -94,6 +101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...parsed,
           currency: 'د.م (MAD)',
           phone: parsed.phone && !parsed.phone.includes('+213') ? parsed.phone : '0699745621',
+          whatsappPhone: parsed.whatsappPhone || parsed.phone || '0699745621',
           address: parsed.address && !parsed.address.includes('الجزائر') ? parsed.address : 'الدار البيضاء - المغرب',
           sheetId: parsed.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4',
           sheetUrl: parsed.sheetUrl || 'https://docs.google.com/spreadsheets/d/1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4/edit',
@@ -120,6 +128,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [sheetConnected, setSheetConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Visitor Favorites (wishlist) state stored in localStorage
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('cipex_art_favorites');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cipex_art_favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  const toggleFavorite = (artworkId: string) => {
+    setFavorites((prev) => {
+      const exists = prev.includes(artworkId);
+      if (exists) {
+        showToast('تمت إزالة اللوحة من قائمة المفضلة', 'info');
+        return prev.filter((id) => id !== artworkId);
+      } else {
+        showToast('تمت إضافة اللوحة إلى المفضلة ❤️', 'success');
+        return [...prev, artworkId];
+      }
+    });
+  };
+
+  const isFavorite = (artworkId: string): boolean => {
+    return favorites.includes(artworkId);
+  };
 
   // Persist to localStorage and server database
   useEffect(() => {
@@ -211,6 +250,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(newRole === 'admin' ? 'تم الدخول بصلاحيات الأدمن الكاملة' : 'تم التحويل إلى وضع الزائر (عرض فقط)', 'info');
   };
 
+  const logoutRole = async () => {
+    if (googleUser) {
+      await logoutGoogle();
+      setGoogleUser(null);
+      setGoogleToken(null);
+    }
+    setRoleState('visitor');
+    localStorage.removeItem('cipex_role');
+    showToast('تم تسجيل الخروج بنجاح', 'info');
+  };
+
   const unlockAdmin = (pin: string): boolean => {
     if (pin === settings.adminPin || pin === '1234') {
       setRole('admin');
@@ -288,6 +338,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSales(updated);
     localStorage.setItem('cipex_sales', JSON.stringify(updated));
     showToast(`تم حذف الفاتورة رقم ${target.invoiceNumber} بنجاح`, 'info');
+  };
+
+  // Update sale invoice (Admin)
+  const updateSale = (updatedSale: SaleInvoice) => {
+    if (role !== 'admin') {
+      showToast('عذراً، هذه الصلاحية للأدمن فقط!', 'error');
+      return;
+    }
+    setSales((prev) => prev.map((s) => (s.id === updatedSale.id ? updatedSale : s)));
+
+    if (updatedSale.status === 'completed') {
+      setArtworks((prev) =>
+        prev.map((a) => (a.id === updatedSale.artworkId ? { ...a, status: 'sold' } : a))
+      );
+    }
+
+    addInventoryLog(
+      updatedSale.artworkId,
+      updatedSale.artworkTitle,
+      'تعديل بيانات',
+      `تحديث الفاتورة رقم ${updatedSale.invoiceNumber} للعميل ${updatedSale.customerName}`
+    );
+
+    showToast(`تم تحديث بيانات الفاتورة رقم ${updatedSale.invoiceNumber} بنجاح!`, 'success');
   };
 
   // Change artwork status
@@ -534,6 +608,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const freshSettings: StoreSettings = {
       ...INITIAL_SETTINGS,
       phone: '0699745621',
+      whatsappPhone: '0699745621',
       currency: 'د.م (MAD)',
       address: 'الدار البيضاء - المغرب',
       sheetId: settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4',
@@ -607,12 +682,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toasts,
         showToast,
         removeToast,
+        favorites,
+        toggleFavorite,
+        isFavorite,
         unlockAdmin,
         setRole,
+        logoutRole,
         addArtwork,
         updateArtwork,
         deleteArtwork,
         deleteSale,
+        updateSale,
         changeArtworkStatus,
         createInvoiceAndRecordSale,
         submitPurchaseRequest,

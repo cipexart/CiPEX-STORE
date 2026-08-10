@@ -19,6 +19,8 @@ import {
   Trash2,
   Sparkles,
   Award,
+  Heart,
+  Palette,
 } from 'lucide-react';
 
 export const ArtworkCatalog: React.FC = () => {
@@ -34,6 +36,11 @@ export const ArtworkCatalog: React.FC = () => {
     setSelectedColorFilter,
     selectedStatusFilter,
     setSelectedStatusFilter,
+    activeTab,
+    setActiveTab,
+    favorites,
+    toggleFavorite,
+    isFavorite,
   } = useApp();
 
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
@@ -41,8 +48,12 @@ export const ArtworkCatalog: React.FC = () => {
   const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Filter artworks
+  // Filter artworks according to search, color, status, and favorites tab
   const filteredArtworks = artworks.filter((art) => {
+    if (activeTab === 'favorites' && !isFavorite(art.id)) {
+      return false;
+    }
+
     const matchesSearch =
       art.titleAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
       art.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -64,40 +75,58 @@ export const ArtworkCatalog: React.FC = () => {
   return (
     <div className="space-y-8 pb-16">
       {/* Hero Showcase Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 border border-zinc-800 p-8 sm:p-12 shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -mb-12 -ml-12 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 max-w-3xl text-right space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold">
-            <PenTool className="w-4 h-4 text-amber-400" />
-            <span>معرض الفنان CiPEX للرسم بالقلم الجاف (Stilo Art)</span>
+      {activeTab === 'favorites' ? (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 border border-zinc-800 p-8 sm:p-12 shadow-2xl">
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+          <div className="relative z-10 max-w-3xl text-right space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-bold">
+              <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+              <span>المفضلة والشغف الفني</span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white font-serif leading-tight">
+              اللوحات المحفوظة في مفضلتك ({favorites.length})
+            </h1>
+            <p className="text-zinc-300 text-sm sm:text-base leading-relaxed">
+              هنا تجد اللوحات الفنية التي نالت إعجابك. يتم حفظ القائمة تلقائياً في متصفحك ويمكنك حجزها واقتناؤها مباشرة عبر الواتساب في أي وقت.
+            </p>
           </div>
+        </div>
+      ) : (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 border border-zinc-800 p-8 sm:p-12 shadow-2xl">
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -mb-12 -ml-12 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white font-serif leading-tight">
-            دقة التفاصيل وعمق الظلال بأقلام الجاف
-          </h1>
-
-          <p className="text-zinc-300 text-sm sm:text-base leading-relaxed">
-            مجموعة أصلية فريدة من اللوحات الفنية المرسومة يدويًا بالكامل بأقلام الستيلو، تستثمر مئات الساعات من التركيز والتظليل الدقيق. كل لوحة قطعة واحدة أصلية مصحوبة بشهادة الأصالة.
-          </p>
-
-          <div className="pt-2 flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-400 border-t border-zinc-800/80">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>اللوحات المتاحة للاقتناء: <strong className="text-amber-400 font-mono text-sm">{availableCount}</strong></span>
+          <div className="relative z-10 max-w-3xl text-right space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold">
+              <PenTool className="w-4 h-4 text-amber-400" />
+              <span>معرض الفنان CiPEX للرسم بالقلم الجاف (Stilo Art)</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span>اللوحات المقتناة والمبيعة: <strong className="text-amber-400 font-mono text-sm">{soldCount}</strong></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-400" />
-              <span>توقيع الفنان وشهادة الأصالة الرسمية</span>
+
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white font-serif leading-tight">
+              دقة التفاصيل وعمق الظلال بأقلام الجاف
+            </h1>
+
+            <p className="text-zinc-300 text-sm sm:text-base leading-relaxed">
+              مجموعة أصلية فريدة من اللوحات الفنية المرسومة يدويًا بالكامل بأقلام الستيلو، تستثمر مئات الساعات من التركيز والتظليل الدقيق. كل لوحة قطعة واحدة أصلية مصحوبة بشهادة الأصالة.
+            </p>
+
+            <div className="pt-2 flex flex-wrap items-center gap-6 text-xs font-semibold text-zinc-400 border-t border-zinc-800/80">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>اللوحات المتاحة للاقتناء: <strong className="text-amber-400 font-mono text-sm">{availableCount}</strong></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                <span>اللوحات المقتناة والمبيعة: <strong className="text-amber-400 font-mono text-sm">{soldCount}</strong></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-amber-400" />
+                <span>توقيع الفنان وشهادة الأصالة الرسمية</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Filter and Control Toolbar */}
       <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 backdrop-blur-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
@@ -212,25 +241,45 @@ export const ArtworkCatalog: React.FC = () => {
           )}
         </div>
       ) : filteredArtworks.length === 0 ? (
-        <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-3xl p-12 text-center text-zinc-400 space-y-3">
-          <Sparkles className="w-10 h-10 mx-auto text-amber-500/50" />
-          <p className="text-base font-semibold">لا توجد لوحات فنية تطابق معايير البحث المحددة</p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedColorFilter('all');
-              setSelectedStatusFilter('all');
-            }}
-            className="text-xs text-amber-400 hover:underline"
-          >
-            إعادة ضبط الفلاتر والبحث
-          </button>
-        </div>
+        activeTab === 'favorites' ? (
+          <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-3xl p-12 text-center text-zinc-400 space-y-4 shadow-xl">
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center">
+              <Heart className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-white font-serif">قائمة المفضلة فارغة حالياً</h3>
+            <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
+              لم تقم بإضافة أي لوحة فنية إلى المفضلة بعد. تصفح المعرض واضغط على رمز القلب ❤️ الموجود على اللوحات لحفظها هنا واقتنائها لاحقاً.
+            </p>
+            <button
+              onClick={() => setActiveTab('catalog')}
+              className="py-3 px-6 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-extrabold rounded-2xl text-xs inline-flex items-center gap-2 transition-all shadow-xl shadow-amber-500/20"
+            >
+              <Palette className="w-4 h-4" />
+              <span>تصفح المعرض واكتشف اللوحات</span>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-3xl p-12 text-center text-zinc-400 space-y-3">
+            <Sparkles className="w-10 h-10 mx-auto text-amber-500/50" />
+            <p className="text-base font-semibold">لا توجد لوحات فنية تطابق معايير البحث المحددة</p>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedColorFilter('all');
+                setSelectedStatusFilter('all');
+              }}
+              className="text-xs text-amber-400 hover:underline"
+            >
+              إعادة ضبط الفلاتر والبحث
+            </button>
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredArtworks.map((art, index) => {
             const isAvailable = art.status === 'available';
             const isReserved = art.status === 'reserved';
+            const isFav = isFavorite(art.id);
 
             return (
               <div
@@ -245,6 +294,25 @@ export const ArtworkCatalog: React.FC = () => {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
+
+                  {/* Favorite Toggle Button (Visitors only) */}
+                  {role === 'visitor' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(art.id);
+                      }}
+                      className={`absolute top-3 left-3 p-2.5 rounded-2xl backdrop-blur-md border transition-all z-20 shadow-xl ${
+                        isFav
+                          ? 'bg-rose-500 text-white border-rose-400 scale-105'
+                          : 'bg-zinc-950/80 text-zinc-400 border-zinc-800/90 hover:text-rose-400 hover:scale-110'
+                      }`}
+                      title={isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+                    >
+                      <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+                    </button>
+                  )}
 
                   {/* Status Badge */}
                   <div className="absolute top-3 right-3">

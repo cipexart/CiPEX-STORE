@@ -41,7 +41,7 @@ const MainContent: React.FC = () => {
         <Header onOpenLoginPage={() => setShowLoginPage(true)} />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-          {activeTab === 'catalog' && <ArtworkCatalog />}
+          {(activeTab === 'catalog' || activeTab === 'favorites') && <ArtworkCatalog />}
           {activeTab === 'invoices' && (role === 'admin' ? <InvoicesList /> : <ArtworkCatalog />)}
           {activeTab === 'analytics' && (role === 'admin' ? <AnalyticsReports /> : <ArtworkCatalog />)}
           {activeTab === 'settings' && (role === 'admin' ? <SettingsPage /> : <ArtworkCatalog />)}

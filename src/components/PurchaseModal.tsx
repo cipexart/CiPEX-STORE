@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Artwork, PaymentMethod } from '../types';
 import { useApp } from '../context/AppContext';
-import { X, ShoppingBag, Check, ShieldCheck, Truck, Phone, User, MapPin } from 'lucide-react';
+import { X, ShoppingBag, Check, ShieldCheck, Truck, Phone, User, MapPin, MessageSquareText } from 'lucide-react';
 
 interface Props {
   artwork: Artwork | null;
@@ -52,6 +52,33 @@ export const PurchaseModal: React.FC<Props> = ({ artwork, onClose }) => {
         customerAddress,
         notes
       );
+
+      // Send Order Details to WhatsApp
+      const rawTargetPhone = settings.whatsappPhone || settings.phone || '0699745621';
+      let cleanedPhone = rawTargetPhone.replace(/\D/g, '');
+      if (cleanedPhone.startsWith('0')) {
+        cleanedPhone = '212' + cleanedPhone.substring(1);
+      } else if (!cleanedPhone.startsWith('212') && cleanedPhone.length === 9) {
+        cleanedPhone = '212' + cleanedPhone;
+      }
+
+      const message = `🎨 *طلب اقتناء وحجز لوحة فنية جديدة (CiPEX STORE)*
+----------------------------------
+🖼️ *اسم اللوحة:* ${artwork.titleAr}
+📏 *المقاس:* ${artwork.dimensions}
+⏳ *ساعات الرسم:* ${artwork.drawingHours} ساعة بالستيلو
+💰 *المبلغ المطلوب:* ${artwork.price.toLocaleString()} ${settings.currency}
+
+👤 *معلومات المقتني:*
+• *الاسم الكامل:* ${customerName}
+• *رقم الهاتف:* ${customerPhone}
+• *العنوان:* ${customerAddress}
+${notes ? `• *ملاحظات خاصة:* ${notes}` : ''}
+
+المرجو تأكيد حجز اللوحة والتواصل معي للتسليم. شكراً لك!`;
+
+      const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
     }
 
     onClose();
@@ -227,10 +254,23 @@ export const PurchaseModal: React.FC<Props> = ({ artwork, onClose }) => {
           <div className="flex gap-3 pt-4 border-t border-zinc-800">
             <button
               type="submit"
-              className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-extrabold rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+              className={`flex-1 py-3.5 font-extrabold rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 ${
+                role === 'admin'
+                  ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-amber-500/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25'
+              }`}
             >
-              <Check className="w-5 h-5" />
-              <span>{role === 'admin' ? 'تأكيد البيع وإصدار الفاتورة' : 'إرسال طلب الاقتناء وحجز اللوحة'}</span>
+              {role === 'admin' ? (
+                <>
+                  <Check className="w-5 h-5" />
+                  <span>تأكيد البيع وإصدار الفاتورة</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquareText className="w-5 h-5" />
+                  <span>إرسال طلب الاقتناء وحجز اللوحة عبر الواتساب</span>
+                </>
+              )}
             </button>
             <button
               type="button"

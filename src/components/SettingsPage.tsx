@@ -51,6 +51,7 @@ export const SettingsPage: React.FC = () => {
   const [artistName, setArtistName] = useState(settings.artistName);
   const [studioName, setStudioName] = useState(settings.studioName);
   const [phone, setPhone] = useState(settings.phone);
+  const [whatsappPhone, setWhatsappPhone] = useState(settings.whatsappPhone || settings.phone || '0699745621');
   const [email, setEmail] = useState(settings.email);
   const [address, setAddress] = useState(settings.address);
   const [currency, setCurrency] = useState(settings.currency);
@@ -80,6 +81,7 @@ export const SettingsPage: React.FC = () => {
       artistName,
       studioName,
       phone,
+      whatsappPhone,
       email,
       address,
       currency,
@@ -382,9 +384,9 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">رقم الهاتف *</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">رقم الهاتف للاتصال *</label>
               <input
                 type="text"
                 required
@@ -392,6 +394,21 @@ export const SettingsPage: React.FC = () => {
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-zinc-100 font-mono focus:outline-none focus:border-amber-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-emerald-400 mb-1 flex items-center gap-1">
+                <span>رقم الواتساب لاستقبال الطلبات *</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={whatsappPhone}
+                onChange={(e) => setWhatsappPhone(e.target.value)}
+                placeholder="0699745621"
+                className="w-full px-4 py-2.5 bg-zinc-950 border border-emerald-500/40 rounded-xl text-sm text-emerald-300 font-mono focus:outline-none focus:border-emerald-400"
+              />
+              <p className="text-[10px] text-zinc-400 mt-1">يتلقى الطلبات المباشرة من الزوار عبر WhatsApp</p>
             </div>
 
             <div>

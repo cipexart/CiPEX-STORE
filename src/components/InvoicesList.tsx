@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { SaleInvoice } from '../types';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { PurchaseModal } from './PurchaseModal';
+import { EditInvoiceModal } from './EditInvoiceModal';
 import {
   Receipt,
   Search,
@@ -15,6 +16,7 @@ import {
   Clock,
   Filter,
   Trash2,
+  Edit,
 } from 'lucide-react';
 
 export const InvoicesList: React.FC = () => {
@@ -22,6 +24,7 @@ export const InvoicesList: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<SaleInvoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<SaleInvoice | null>(null);
   const [showNewInvoiceModal, setShowNewInvoiceModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -186,17 +189,27 @@ export const InvoicesList: React.FC = () => {
                       <span>معاينة وطباعة الفاتورة</span>
                     </button>
                     {role === 'admin' && (
-                      <button
-                        onClick={() => {
-                          if (confirm(`هل أنت تأكد من رغبتك في حذف الفاتورة رقم ${inv.invoiceNumber}؟`)) {
-                            deleteSale(inv.id);
-                          }
-                        }}
-                        className="p-2.5 bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-700 transition-all"
-                        title="حذف الفاتورة"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setEditingInvoice(inv)}
+                          className="px-3.5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-zinc-700 transition-all"
+                          title="تعديل بيانات الفاتورة"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>تعديل</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`هل أنت تأكد من رغبتك في حذف الفاتورة رقم ${inv.invoiceNumber}؟`)) {
+                              deleteSale(inv.id);
+                            }
+                          }}
+                          className="p-2.5 bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 rounded-xl border border-zinc-700 transition-all"
+                          title="حذف الفاتورة"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -210,6 +223,12 @@ export const InvoicesList: React.FC = () => {
       <InvoicePrintModal
         invoice={selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
+      />
+
+      {/* Edit Invoice Modal */}
+      <EditInvoiceModal
+        invoice={editingInvoice}
+        onClose={() => setEditingInvoice(null)}
       />
 
       {/* New Invoice Modal */}
