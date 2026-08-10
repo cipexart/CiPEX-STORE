@@ -61,21 +61,33 @@ export const AnalyticsReports: React.FC = () => {
     count: colorCounts[key],
   }));
 
-  // Chart Data 3: Sales trend data by month
-  const salesByMonth: Record<string, number> = {
-    'يناير': 0,
-    'فبراير': 0,
-    'مارس': 60000,
-    'أبريل': 0,
-    'مايو': 0,
-    'يونيو': 95000,
-    'يوليو': 0,
-    'أغسطس': totalRevenue > 155000 ? totalRevenue - 155000 : 85000,
-  };
+  // Chart Data 3: Dynamic Sales trend data calculated from real completed sales
+  const monthNamesArabic = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+  ];
 
-  const monthlyTrendData = Object.keys(salesByMonth).map((month) => ({
+  const salesByMonth: Record<string, number> = {};
+  monthNamesArabic.forEach((m) => {
+    salesByMonth[m] = 0;
+  });
+
+  completedSales.forEach((sale) => {
+    if (sale.saleDate) {
+      const date = new Date(sale.saleDate);
+      if (!isNaN(date.getTime())) {
+        const monthIdx = date.getMonth();
+        const monthName = monthNamesArabic[monthIdx];
+        if (monthName) {
+          salesByMonth[monthName] = (salesByMonth[monthName] || 0) + (sale.finalPrice || 0);
+        }
+      }
+    }
+  });
+
+  const monthlyTrendData = monthNamesArabic.map((month) => ({
     month,
-    revenue: salesByMonth[month],
+    revenue: salesByMonth[month] || 0,
   }));
 
   return (
