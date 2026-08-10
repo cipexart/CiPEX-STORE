@@ -97,10 +97,151 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "CiPEX Stilo Art Store API", time: new Date().toISOString() });
 });
 
+function parseGvizRows(gvizText: string): string[][] {
+  try {
+    const jsonStart = gvizText.indexOf('{');
+    const jsonEnd = gvizText.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) return [];
+    const jsonStr = gvizText.substring(jsonStart, jsonEnd + 1);
+    const data = JSON.parse(jsonStr);
+    if (!data.table || !data.table.rows) return [];
+
+    return data.table.rows.map((row: any) => {
+      if (!row || !row.c) return [];
+      return row.c.map((cell: any) => {
+        if (!cell || cell.v === null || cell.v === undefined) return '';
+        if (cell.f !== undefined && cell.f !== null) return String(cell.f);
+        return String(cell.v);
+      });
+    });
+  } catch (err) {
+    console.error("Gviz parse error:", err);
+    return [];
+  }
+}
+
+async function fetchSheetPublicRows(spreadsheetId: string, sheetName: string): Promise<string[][]> {
+  try {
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+    const resp = await fetch(gvizUrl);
+    if (!resp.ok) return [];
+    const text = await resp.text();
+    return parseGvizRows(text);
+  } catch (err) {
+    console.error(`Error fetching public sheet ${sheetName}:`, err);
+    return [];
+  }
+}
+
+async function pullAllFromSheet(spreadsheetId: string, accessToken?: string | null) {
+  let artworkValues: string[][] = [];
+  let salesValues: string[][] = [];
+  let logValues: string[][] = [];
+
+  let usedOAuth = false;
+
+  if (accessToken) {
+    try {
+      const ranges = [
+        "Artworks!A2:N1000",
+        "Sales_Invoices!A2:N1000",
+        "Inventory_Log!A2:F1000"
+      ];
+      const rangesParam = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join("&");
+      const sheetData = await sheetsApiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${rangesParam}`,
+        "GET",
+        null,
+        accessToken
+      );
+      const valueRanges = sheetData.valueRanges || [];
+      artworkValues = valueRanges[0]?.values || [];
+      salesValues = valueRanges[1]?.values || [];
+      logValues = valueRanges[2]?.values || [];
+      usedOAuth = true;
+    } catch (err: any) {
+      console.warn("OAuth pull failed, attempting public fallback:", err.message);
+    }
+  }
+
+  if (!usedOAuth) {
+    artworkValues = await fetchSheetPublicRows(spreadsheetId, "Artworks");
+    salesValues = await fetchSheetPublicRows(spreadsheetId, "Sales_Invoices");
+    logValues = await fetchSheetPublicRows(spreadsheetId, "Inventory_Log");
+  }
+
+  const artworks = artworkValues
+    .filter((row: any[]) => row && row[0])
+    .map((row: any[]) => ({
+      id: String(row[0]),
+      titleAr: String(row[1] || "لوحة قلم جاف"),
+      title: String(row[1] || "Stilo Artwork"),
+      dimensions: String(row[2] || "50x70 cm"),
+      drawingHours: Number(row[3]) || 50,
+      penColors: typeof row[4] === 'string' ? row[4].split(",").map((c: string) => c.trim()) : (Array.isArray(row[4]) ? row[4] : ["أزرق جاف"]),
+      paperType: String(row[5] || "ورق فني 300 غرام"),
+      creationYear: String(row[6] || "2024"),
+      price: Number(row[7]) || 0,
+      status: String(row[8] || "available"),
+      imageUrl: String(row[9] || ""),
+      description: String(row[10] || ""),
+      certificateNumber: String(row[11] || ""),
+      frameIncluded: row[12] === "نعم" || row[12] === "true" || row[12] === true,
+      createdAt: String(row[13] || new Date().toISOString())
+    }));
+
+  const sales = salesValues
+    .filter((row: any[]) => row && row[0])
+    .map((row: any[]) => ({
+      invoiceNumber: String(row[0]),
+      artworkId: String(row[1] || ""),
+      artworkTitle: String(row[2] || ""),
+      customerName: String(row[3] || ""),
+      customerPhone: String(row[4] || ""),
+      customerAddress: String(row[5] || ""),
+      customerEmail: String(row[6] || ""),
+      saleDate: String(row[7] || ""),
+      originalPrice: Number(row[8]) || 0,
+      discount: Number(row[9]) || 0,
+      finalPrice: Number(row[10]) || 0,
+      paymentMethod: String(row[11] || "cash"),
+      status: String(row[12] || "completed"),
+      notes: String(row[13] || "")
+    }));
+
+  const inventoryLogs = logValues
+    .filter((row: any[]) => row && row[0])
+    .map((row: any[]) => ({
+      id: String(row[0]),
+      artworkId: String(row[1] || ""),
+      artworkTitle: String(row[2] || ""),
+      action: String(row[3] || ""),
+      timestamp: String(row[4] || ""),
+      details: String(row[5] || "")
+    }));
+
+  return { artworks, sales, inventoryLogs };
+}
+
 // GET Public/Visitor Store Data & Preserved Sheet Info
-app.get("/api/store/data", (_req, res) => {
+app.get("/api/store/data", async (_req, res) => {
   const config = getStoreConfig();
-  const db = getStoreDatabase();
+  let db = getStoreDatabase();
+
+  if ((!db.artworks || db.artworks.length === 0) && config.sheetId) {
+    try {
+      const pulled = await pullAllFromSheet(config.sheetId, null);
+      if (pulled.artworks && pulled.artworks.length > 0) {
+        db.artworks = pulled.artworks;
+        if (pulled.sales && pulled.sales.length > 0) db.sales = pulled.sales;
+        if (pulled.inventoryLogs && pulled.inventoryLogs.length > 0) db.inventoryLogs = pulled.inventoryLogs;
+        saveStoreDatabase({ ...db, updatedAt: new Date().toISOString() });
+      }
+    } catch (err) {
+      console.error("Auto pull on GET /api/store/data error:", err);
+    }
+  }
+
   res.json({
     success: true,
     config,
@@ -498,91 +639,35 @@ app.post("/api/sheets/pull-all", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
-    const { spreadsheetId } = req.body;
+    let { spreadsheetId } = req.body;
 
-    if (!accessToken || !spreadsheetId) {
-      return res.status(400).json({ error: "بيانات الاعتماد أو معرف Google Sheet مفقود." });
+    if (!spreadsheetId) {
+      const config = getStoreConfig();
+      spreadsheetId = config.sheetId;
     }
 
-    const ranges = [
-      "Artworks!A2:N1000",
-      "Sales_Invoices!A2:N1000",
-      "Inventory_Log!A2:F1000",
-      "Store_Settings!A2:B20"
-    ];
+    if (!spreadsheetId) {
+      return res.status(400).json({ error: "معرف Google Sheet مفقود." });
+    }
 
-    const rangesParam = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join("&");
-    const sheetData = await sheetsApiFetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${rangesParam}`,
-      "GET",
-      null,
-      accessToken
-    );
+    const { artworks, sales, inventoryLogs } = await pullAllFromSheet(spreadsheetId, accessToken);
 
-    const valueRanges = sheetData.valueRanges || [];
-
-    // Parse Artworks
-    const artworkValues = valueRanges[0]?.values || [];
-    const artworks = artworkValues
-      .filter((row: any[]) => row && row[0])
-      .map((row: any[]) => ({
-        id: row[0],
-        titleAr: row[1] || "لوحة قلم جاف",
-        title: row[1] || "Stilo Artwork",
-        dimensions: row[2] || "50x70 cm",
-        drawingHours: Number(row[3]) || 50,
-        penColors: (row[4] || "أزرق جاف").split(",").map((c: string) => c.trim()),
-        paperType: row[5] || "ورق فني 300 غرام",
-        creationYear: row[6] || "2024",
-        price: Number(row[7]) || 0,
-        status: row[8] || "available",
-        imageUrl: row[9] || "",
-        description: row[10] || "",
-        certificateNumber: row[11] || "",
-        frameIncluded: row[12] === "نعم",
-        createdAt: row[13] || new Date().toISOString()
-      }));
-
-    // Parse Sales Invoices
-    const salesValues = valueRanges[1]?.values || [];
-    const sales = salesValues
-      .filter((row: any[]) => row && row[0])
-      .map((row: any[]) => ({
-        invoiceNumber: row[0],
-        artworkId: row[1],
-        artworkTitle: row[2],
-        customerName: row[3],
-        customerPhone: row[4],
-        customerAddress: row[5],
-        customerEmail: row[6],
-        saleDate: row[7],
-        originalPrice: Number(row[8]) || 0,
-        discount: Number(row[9]) || 0,
-        finalPrice: Number(row[10]) || 0,
-        paymentMethod: row[11] || "cash",
-        status: row[12] || "completed",
-        notes: row[13] || ""
-      }));
-
-    // Parse Inventory Logs
-    const logValues = valueRanges[2]?.values || [];
-    const inventoryLogs = logValues
-      .filter((row: any[]) => row && row[0])
-      .map((row: any[]) => ({
-        id: row[0],
-        artworkId: row[1],
-        artworkTitle: row[2],
-        action: row[3],
-        timestamp: row[4],
-        details: row[5]
-      }));
+    // Save pulled data to server DB so visitors also get it
+    const db = getStoreDatabase();
+    saveStoreDatabase({
+      ...db,
+      artworks: artworks.length > 0 ? artworks : db.artworks,
+      sales: sales.length > 0 ? sales : db.sales,
+      inventoryLogs: inventoryLogs.length > 0 ? inventoryLogs : db.inventoryLogs,
+      updatedAt: new Date().toISOString()
+    });
 
     return res.json({
       success: true,
       artworks,
       sales,
       inventoryLogs,
-      message: "تم جلب البيانات بنجاح من Google Sheet!"
+      message: "تم جلب المحدثات بنجاح من Google Sheet!"
     });
   } catch (error: any) {
     console.error("Sheets Pull Error:", error);

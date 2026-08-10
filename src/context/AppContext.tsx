@@ -569,20 +569,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const pullFromGoogleSheets = async () => {
     const token = googleToken || getAccessToken();
-    if (!token || !settings.sheetId) {
-      showToast('يرجى التأكد من تسجيل الدخول وتحديد Google Sheet أولاً', 'error');
-      return;
-    }
+    const sheetId = settings.sheetId || '1EWqSFQhgA7d0n6V37W0WvhP1UqkZalPPb2quS7kE1T4';
 
     try {
       setSyncing(true);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/sheets/pull-all', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ spreadsheetId: settings.sheetId }),
+        headers,
+        body: JSON.stringify({ spreadsheetId: sheetId }),
       });
 
       const data = await res.json();
