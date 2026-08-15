@@ -1,5 +1,78 @@
 // Client-side Google Sheets API service for static environments (e.g. GitHub Pages)
 
+export const REQUIRED_SHEETS = [
+  {
+    title: "Artworks",
+    headers: [
+      "ID",
+      "TitleAr (عنوان اللوحة)",
+      "Dimensions (الأبعاد)",
+      "DrawingHours (ساعات الرسم)",
+      "PenColors (ألوان القلم الجاف)",
+      "PaperType (نوع الورق)",
+      "CreationYear (سنة الإنجاز)",
+      "Price (السعر)",
+      "Status (الحالة)",
+      "ImageUrl (رابط الصورة)",
+      "Description (الوصف)",
+      "CertificateNumber (رقم الشهادة)",
+      "FrameIncluded (إطار متاح)",
+      "CreatedAt (تاريخ الإضافة)"
+    ]
+  },
+  {
+    title: "Customer_Orders",
+    headers: [
+      "OrderID (رقم الطلب)",
+      "ArtworkId (معرف اللوحة)",
+      "ArtworkTitle (عنوان اللوحة)",
+      "Dimensions (الأبعاد)",
+      "Price (السعر)",
+      "CustomerName (اسم المقتني)",
+      "CustomerPhone (رقم الهاتف)",
+      "CustomerAddress (عنوان التسليم)",
+      "CustomerEmail (البريد الإلكتروني)",
+      "OrderDate (تاريخ الطلب)",
+      "Status (حالة الطلب)",
+      "Notes (ملاحظات خاصة)"
+    ]
+  },
+  {
+    title: "Sales_Invoices",
+    headers: [
+      "InvoiceNumber (رقم الفاتورة)",
+      "ArtworkId (معرف اللوحة)",
+      "ArtworkTitle (اسم اللوحة)",
+      "CustomerName (اسم العميل)",
+      "CustomerPhone (رقم الهاتف)",
+      "CustomerAddress (العنوان)",
+      "CustomerEmail (البريد الإلكتروني)",
+      "SaleDate (تاريخ البيع)",
+      "OriginalPrice (السعر الأصلي)",
+      "Discount (الخصم)",
+      "FinalPrice (السعر النهائي)",
+      "PaymentMethod (طريقة الدفع)",
+      "Status (الحالة)",
+      "Notes (ملاحظات)"
+    ]
+  },
+  {
+    title: "Inventory_Log",
+    headers: [
+      "ID",
+      "ArtworkId (معرف اللوحة)",
+      "ArtworkTitle (اسم اللوحة)",
+      "Action (نوع الحركة)",
+      "Timestamp (الوقت)",
+      "Details (تفاصيل)"
+    ]
+  },
+  {
+    title: "Store_Settings",
+    headers: ["Key (المفتاح)", "Value (القيمة)"]
+  }
+];
+
 export async function sheetsApiFetch(url: string, method = 'GET', body: any = null, accessToken: string) {
   const options: RequestInit = {
     method,
@@ -23,6 +96,65 @@ export async function sheetsApiFetch(url: string, method = 'GET', body: any = nu
   return data;
 }
 
+/**
+ * Automatically inspects the spreadsheet and creates any missing sheet tabs (such as Customer_Orders)
+ * and seeds their header columns.
+ */
+export async function ensureSpreadsheetTabsExist(accessToken: string, spreadsheetId: string) {
+  try {
+    const sheetMeta = await sheetsApiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+      "GET",
+      null,
+      accessToken
+    );
+
+    const existingTitles: string[] = (sheetMeta.sheets || [])
+      .map((s: any) => s.properties?.title)
+      .filter(Boolean);
+
+    const missing = REQUIRED_SHEETS.filter(req => !existingTitles.includes(req.title));
+
+    if (missing.length > 0) {
+      // 1. Add missing sheets
+      const addSheetRequests = missing.map(m => ({
+        addSheet: {
+          properties: {
+            title: m.title
+          }
+        }
+      }));
+
+      await sheetsApiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        "POST",
+        { requests: addSheetRequests },
+        accessToken
+      );
+
+      // 2. Add header rows for the newly added sheets
+      const headerData = missing.map(m => ({
+        range: `${m.title}!A1`,
+        values: [m.headers]
+      }));
+
+      await sheetsApiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
+        "POST",
+        {
+          valueInputOption: "USER_ENTERED",
+          data: headerData
+        },
+        accessToken
+      );
+    }
+
+    return sheetMeta;
+  } catch (err: any) {
+    console.warn("Notice checking/creating sheet tabs:", err.message);
+  }
+}
+
 export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheetIdInput?: string) {
   let spreadsheetId = spreadsheetIdInput?.trim();
 
@@ -31,13 +163,7 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
       properties: {
         title: "CiPEX STORE",
       },
-      sheets: [
-        { properties: { title: "Artworks" } },
-        { properties: { title: "Customer_Orders" } },
-        { properties: { title: "Sales_Invoices" } },
-        { properties: { title: "Inventory_Log" } },
-        { properties: { title: "Store_Settings" } },
-      ],
+      sheets: REQUIRED_SHEETS.map(s => ({ properties: { title: s.title } })),
     };
 
     const createdSheet = await sheetsApiFetch(
@@ -53,86 +179,10 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
     // Seed headers
     const headersPayload = {
       valueInputOption: "USER_ENTERED",
-      data: [
-        {
-          range: "Artworks!A1:N1",
-          values: [
-            [
-              "ID",
-              "TitleAr (عنوان اللوحة)",
-              "Dimensions (الأبعاد)",
-              "DrawingHours (ساعات الرسم)",
-              "PenColors (ألوان القلم الجاف)",
-              "PaperType (نوع الورق)",
-              "CreationYear (سنة الإنجاز)",
-              "Price (السعر)",
-              "Status (الحالة)",
-              "ImageUrl (رابط الصورة)",
-              "Description (الوصف)",
-              "CertificateNumber (رقم الشهادة)",
-              "FrameIncluded (إطار متاح)",
-              "CreatedAt (تاريخ الإضافة)"
-            ],
-          ],
-        },
-        {
-          range: "Customer_Orders!A1:L1",
-          values: [
-            [
-              "OrderID (رقم الطلب)",
-              "ArtworkId (معرف اللوحة)",
-              "ArtworkTitle (عنوان اللوحة)",
-              "Dimensions (الأبعاد)",
-              "Price (السعر)",
-              "CustomerName (اسم المقتني)",
-              "CustomerPhone (رقم الهاتف)",
-              "CustomerAddress (عنوان التسليم)",
-              "CustomerEmail (البريد الإلكتروني)",
-              "OrderDate (تاريخ الطلب)",
-              "Status (حالة الطلب)",
-              "Notes (ملاحظات خاصة)"
-            ],
-          ],
-        },
-        {
-          range: "Sales_Invoices!A1:N1",
-          values: [
-            [
-              "InvoiceNumber (رقم الفاتورة)",
-              "ArtworkId (معرف اللوحة)",
-              "ArtworkTitle (اسم اللوحة)",
-              "CustomerName (اسم العميل)",
-              "CustomerPhone (رقم الهاتف)",
-              "CustomerAddress (العنوان)",
-              "CustomerEmail (البريد الإلكتروني)",
-              "SaleDate (تاريخ البيع)",
-              "OriginalPrice (السعر الأصلي)",
-              "Discount (الخصم)",
-              "FinalPrice (السعر النهائي)",
-              "PaymentMethod (طريقة الدفع)",
-              "Status (الحالة)",
-              "Notes (ملاحظات)"
-            ],
-          ],
-        },
-        {
-          range: "Inventory_Log!A1:F1",
-          values: [
-            [
-              "ID",
-              "ArtworkId (معرف اللوحة)",
-              "ArtworkTitle (اسم اللوحة)",
-              "Action (نوع الحركة)",
-              "Timestamp (الوقت)",
-              "Details (تفاصيل)"
-            ],
-          ],
-        },
-        {
-          range: "Store_Settings!A1:B1",
-          values: [["Key (المفتاح)", "Value (القيمة)"]]
-        }
-      ],
+      data: REQUIRED_SHEETS.map(s => ({
+        range: `${s.title}!A1`,
+        values: [s.headers]
+      }))
     };
 
     await sheetsApiFetch(
@@ -145,9 +195,12 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
     return {
       spreadsheetId,
       spreadsheetUrl,
-      message: "تم إنشاء جدول بيانات جديد 'CiPEX STORE' وتوصيله بنجاح مع صفحة مخصصة لطلبات الاقتناء Customer_Orders!",
+      message: "تم إنشاء جدول بيانات جديد 'CiPEX STORE' وتوصيله بنجاح مع جميع الصفحات بما فيها صفحة طلبات الاقتناء Customer_Orders!",
     };
   }
+
+  // Ensure all required tabs exist in the existing sheet
+  await ensureSpreadsheetTabsExist(accessToken, spreadsheetId);
 
   // Verify existing
   const sheetMeta = await sheetsApiFetch(
@@ -162,7 +215,7 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
     spreadsheetId,
     spreadsheetUrl,
     title: sheetMeta.properties?.title || "CiPEX STORE",
-    message: "تم التحقق والربط بـ Google Sheet بنجاح!",
+    message: "تم التحقق والربط بـ Google Sheet وتحديث جميع الصفحات بنجاح!",
   };
 }
 
@@ -173,23 +226,30 @@ export async function clientPushAllToSheet(
 ) {
   const { artworks = [], sales = [], inventoryLogs = [], settings = {} } = payload;
 
-  // 1. Clear existing contents
-  await sheetsApiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchClear`,
-    "POST",
-    {
-      ranges: [
-        "Artworks!A2:N1000",
-        "Customer_Orders!A2:L1000",
-        "Sales_Invoices!A2:N1000",
-        "Inventory_Log!A2:F1000",
-        "Store_Settings!A2:B100"
-      ]
-    },
-    accessToken
-  );
+  // 1. Ensure all sheet tabs (including Customer_Orders) exist before clearing or writing
+  await ensureSpreadsheetTabsExist(accessToken, spreadsheetId);
 
-  // 2. Prepare Rows
+  // 2. Clear existing contents safely
+  try {
+    await sheetsApiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchClear`,
+      "POST",
+      {
+        ranges: [
+          "Artworks!A2:Z1000",
+          "Customer_Orders!A2:Z1000",
+          "Sales_Invoices!A2:Z1000",
+          "Inventory_Log!A2:Z1000",
+          "Store_Settings!A2:Z100"
+        ]
+      },
+      accessToken
+    );
+  } catch (clearErr: any) {
+    console.warn("Notice: safe batchClear soft catch:", clearErr.message);
+  }
+
+  // 3. Prepare Rows
   const artworkRows = artworks.map((item) => [
     item.id,
     item.titleAr || item.title || "",
@@ -311,6 +371,9 @@ export async function clientAppendOrderToSheet(
     notes?: string;
   }
 ) {
+  // Ensure the Customer_Orders tab exists before appending
+  await ensureSpreadsheetTabsExist(accessToken, spreadsheetId);
+
   const row = [
     order.orderId,
     order.artworkId,
@@ -347,6 +410,7 @@ export async function clientPullAllFromSheet(accessToken: string | null, spreads
 
   if (accessToken) {
     try {
+      await ensureSpreadsheetTabsExist(accessToken, spreadsheetId);
       const res = await sheetsApiFetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?ranges=Artworks!A2:N1000&ranges=Sales_Invoices!A2:N1000&ranges=Inventory_Log!A2:F1000`,
         "GET",
