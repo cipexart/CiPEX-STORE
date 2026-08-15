@@ -193,7 +193,13 @@ export const LoginPage: React.FC<Props> = ({ onContinueAsVisitor, onLoginSuccess
       {/* Footer info */}
       <footer className="max-w-6xl w-full mx-auto pt-6 border-t border-zinc-800/60 text-center text-xs text-zinc-500 relative z-10 flex flex-col sm:flex-row items-center justify-between gap-2">
         <p>© 2026 CiPEX STORE. جميع الحقوق محفوظة للفنان CiPEX.</p>
-        <p className="font-mono text-[11px]">المقر الرئيسي: الدار البيضاء، المغرب | {settings.phone}</p>
+        <p className="font-mono text-[11px] flex items-center gap-3">
+          <span>المقر: الدار البيضاء، المغرب</span>
+          <span>•</span>
+          <span>الهاتف: {settings.phone}</span>
+          <span>•</span>
+          <span className="text-emerald-400 font-bold">WhatsApp: @{settings.whatsappUsername || 'cipexart'}</span>
+        </p>
       </footer>
     </div>
   );

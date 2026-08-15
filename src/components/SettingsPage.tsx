@@ -50,6 +50,7 @@ export const SettingsPage: React.FC = () => {
   const [studioName, setStudioName] = useState(settings.studioName);
   const [phone, setPhone] = useState(settings.phone);
   const [whatsappPhone, setWhatsappPhone] = useState(settings.whatsappPhone || settings.phone || '0699745621');
+  const [whatsappUsername, setWhatsappUsername] = useState(settings.whatsappUsername || 'cipexart');
   const [email, setEmail] = useState(settings.email);
   const [address, setAddress] = useState(settings.address);
   const [currency, setCurrency] = useState(settings.currency);
@@ -62,6 +63,7 @@ export const SettingsPage: React.FC = () => {
       studioName,
       phone,
       whatsappPhone,
+      whatsappUsername: whatsappUsername.replace(/^@/, '').trim(),
       email,
       address,
       currency,
@@ -331,7 +333,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1">رقم الهاتف للاتصال *</label>
               <input
@@ -344,18 +346,34 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-emerald-400 mb-1 flex items-center gap-1">
-                <span>رقم الواتساب لاستقبال الطلبات *</span>
+              <label className="block text-xs font-bold text-emerald-400 mb-1 flex items-center justify-between">
+                <span>معرّف الواتساب المباشر (Username) *</span>
+                <span className="text-[10px] text-amber-400 font-mono">ميزة جديدة</span>
               </label>
+              <div className="relative">
+                <span className="absolute right-3.5 top-2.5 text-zinc-500 font-mono text-sm">@</span>
+                <input
+                  type="text"
+                  required
+                  value={whatsappUsername}
+                  onChange={(e) => setWhatsappUsername(e.target.value)}
+                  placeholder="cipexart"
+                  className="w-full pl-4 pr-8 py-2.5 bg-zinc-950 border border-emerald-500/50 rounded-xl text-sm text-emerald-300 font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                />
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-1">يتم إرسال طلبات وحجوزات الزوار مباشرة إلى المعرّف @{whatsappUsername || 'cipexart'}</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">رقم الواتساب الاحتياطي</label>
               <input
                 type="text"
-                required
                 value={whatsappPhone}
                 onChange={(e) => setWhatsappPhone(e.target.value)}
                 placeholder="0699745621"
-                className="w-full px-4 py-2.5 bg-zinc-950 border border-emerald-500/40 rounded-xl text-sm text-emerald-300 font-mono focus:outline-none focus:border-emerald-400"
+                className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-zinc-200 font-mono focus:outline-none focus:border-amber-500"
               />
-              <p className="text-[10px] text-zinc-400 mt-1">يتلقى الطلبات المباشرة من الزوار عبر WhatsApp</p>
+              <p className="text-[10px] text-zinc-500 mt-1">رقم الهاتف البديل في حال تعذر استخدام المعرف</p>
             </div>
 
             <div>

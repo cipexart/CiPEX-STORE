@@ -53,7 +53,8 @@ export interface StoreSettings {
   artistName: string;
   studioName: string;
   phone: string;
-  whatsappPhone?: string; // Designated WhatsApp number for purchase requests (e.g. 0699745621)
+  whatsappPhone?: string; // Designated WhatsApp number (e.g. 0699745621)
+  whatsappUsername?: string; // WhatsApp Username / Handle (e.g. cipexart or @cipexart)
   email: string;
   address: string;
   currency: string;

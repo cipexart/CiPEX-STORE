@@ -16,6 +16,7 @@ import {
   PenTool,
   Edit,
   Heart,
+  MessageCircle,
 } from 'lucide-react';
 
 interface Props {
@@ -160,13 +161,33 @@ export const ArtworkDetailModal: React.FC<Props> = ({
             </div>
 
             {/* Certificate Tag */}
-            <div className="flex items-center gap-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl mb-6">
+            <div className="flex items-center gap-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl mb-4">
               <Award className="w-6 h-6 text-amber-400 shrink-0" />
               <div>
                 <p className="text-xs font-bold text-amber-300">مرفقة بشهادة الأصالة الرسمية</p>
                 <p className="text-[11px] text-amber-200/70 font-mono">رقم الشهادة: {artwork.certificateNumber}</p>
               </div>
             </div>
+
+            {/* Direct WhatsApp Handle Badge for visitor inquiries */}
+            {role === 'visitor' && (
+              <div className="mb-4">
+                <a
+                  href={`https://wa.me/${(settings.whatsappUsername || 'cipexart').replace(/^@/, '')}?text=${encodeURIComponent(`مرحباً أستاذ CiPEX، أستفسر بخصوص لوحة "${artwork.titleAr}" (${artwork.price.toLocaleString()} ${settings.currency}) المعروضة في متجركم.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between p-3 bg-emerald-950/30 hover:bg-emerald-950/50 border border-emerald-500/30 hover:border-emerald-500/50 rounded-2xl text-xs transition-all text-emerald-300 group"
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <MessageCircle className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                    <span>مراسلة الفنان مباشرة عبر واتساب</span>
+                  </span>
+                  <span className="font-mono font-bold text-amber-300 bg-zinc-950/80 px-2.5 py-1 rounded-xl border border-zinc-800 text-[11px]">
+                    @{settings.whatsappUsername || 'cipexart'}
+                  </span>
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

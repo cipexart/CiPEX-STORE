@@ -53,7 +53,8 @@ export const PurchaseModal: React.FC<Props> = ({ artwork, onClose }) => {
         notes
       );
 
-      // Send Order Details to WhatsApp
+      // Send Order Details directly to WhatsApp username handle (e.g. @cipexart)
+      const usernameHandle = (settings.whatsappUsername || 'cipexart').replace(/^@/, '').trim();
       const rawTargetPhone = settings.whatsappPhone || settings.phone || '0699745621';
       let cleanedPhone = rawTargetPhone.replace(/\D/g, '');
       if (cleanedPhone.startsWith('0')) {
@@ -61,6 +62,8 @@ export const PurchaseModal: React.FC<Props> = ({ artwork, onClose }) => {
       } else if (!cleanedPhone.startsWith('212') && cleanedPhone.length === 9) {
         cleanedPhone = '212' + cleanedPhone;
       }
+
+      const targetDestination = usernameHandle || cleanedPhone;
 
       const message = `🎨 *طلب اقتناء وحجز لوحة فنية جديدة (CiPEX STORE)*
 ----------------------------------
@@ -77,7 +80,7 @@ ${notes ? `• *ملاحظات خاصة:* ${notes}` : ''}
 
 المرجو تأكيد حجز اللوحة والتواصل معي للتسليم. شكراً لك!`;
 
-      const whatsappUrl = `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
+      const whatsappUrl = `https://wa.me/${targetDestination}?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
     }
 
@@ -268,7 +271,7 @@ ${notes ? `• *ملاحظات خاصة:* ${notes}` : ''}
               ) : (
                 <>
                   <MessageSquareText className="w-5 h-5" />
-                  <span>إرسال طلب الاقتناء وحجز اللوحة عبر الواتساب</span>
+                  <span>إرسال طلب الاقتناء إلى واتساب (@{settings.whatsappUsername || 'cipexart'})</span>
                 </>
               )}
             </button>

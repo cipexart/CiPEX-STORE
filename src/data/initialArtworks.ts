@@ -11,6 +11,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   studioName: 'CiPEX STORE - متجر واستوديو اللوحات الجافة (Stilo Art)',
   phone: '0699745621',
   whatsappPhone: '0699745621',
+  whatsappUsername: 'cipexart',
   email: 'artcipex@gmail.com',
   address: 'الدار البيضاء - المغرب',
   currency: 'د.م (MAD)',
