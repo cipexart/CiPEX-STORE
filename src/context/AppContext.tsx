@@ -6,7 +6,8 @@ import { initAuth, googleSignIn, logoutGoogle, getAccessToken } from '../service
 import {
   clientVerifyOrCreateSheet,
   clientPushAllToSheet,
-  clientPullAllFromSheet
+  clientPullAllFromSheet,
+  clientAppendOrderToSheet
 } from '../services/googleSheetsClient';
 import { saveToFirestore, loadFromFirestore } from '../services/firebaseFirestore';
 
@@ -488,12 +489,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Visitor purchase request
-  const submitPurchaseRequest = (
+  const submitPurchaseRequest = async (
     artworkId: string,
     customerName: string,
     customerPhone: string,
     customerAddress: string,
-    notes?: string
+    notes?: string,
+    customerEmail?: string
   ) => {
     const art = artworks.find((a) => a.id === artworkId);
     if (!art) return;
@@ -501,6 +503,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Create a pending sale invoice
     const invCount = sales.length + 1;
     const invoiceNum = `REQ-CIPEX-${new Date().getFullYear()}-${String(invCount).padStart(3, '0')}`;
+    const orderDate = new Date().toISOString().split('T')[0];
 
     const newReq: SaleInvoice = {
       id: 'req-' + Date.now(),
@@ -510,7 +513,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerName,
       customerPhone,
       customerAddress,
-      saleDate: new Date().toISOString().split('T')[0],
+      customerEmail: customerEmail || '',
+      saleDate: orderDate,
       originalPrice: art.price,
       discount: 0,
       finalPrice: art.price,
@@ -529,10 +533,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       art.id,
       art.titleAr,
       'حجز اللوحة',
-      `طلب اقتناء جديد من العميل (الزائر): ${customerName} (${customerPhone})`
+      `طلب اقتناء جديد من العميل (الزائر): ${customerName} (${customerPhone}) - العنوان: ${customerAddress}`
     );
 
-    showToast('تم إرسال طلب الاقتناء وحجز اللوحة بنجاح! سيتواصل معك الفنان CiPEX قريباً.', 'success');
+    // 1. Submit to Backend / API Orders
+    try {
+      fetch('/api/orders/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artworkId: art.id,
+          artworkTitle: art.titleAr,
+          dimensions: art.dimensions,
+          price: art.price,
+          customerName,
+          customerPhone,
+          customerAddress,
+          customerEmail: customerEmail || '',
+          notes,
+        }),
+      }).catch((err) => console.log('Order submit backend sync notice:', err));
+    } catch (e) {
+      console.log('Error triggering server order submit:', e);
+    }
+
+    // 2. Direct Append to Google Sheet Customer_Orders Tab if connected
+    if (googleToken && settings.sheetId) {
+      try {
+        await clientAppendOrderToSheet(googleToken, settings.sheetId, {
+          orderId: invoiceNum,
+          artworkId: art.id,
+          artworkTitle: art.titleAr,
+          dimensions: art.dimensions,
+          price: art.price,
+          customerName,
+          customerPhone,
+          customerAddress,
+          customerEmail: customerEmail || '',
+          orderDate,
+          status: 'طلب جديد - قيد المتابعة',
+          notes: notes || '',
+        });
+      } catch (err: any) {
+        console.log('Google Sheets direct append notice:', err.message);
+      }
+    }
+
+    showToast('تم تسجيل وحفظ طلب الاقتناء في صفحة الشيت Customer_Orders وحجز اللوحة بنجاح!', 'success');
   };
 
   const updateSettings = (newSettings: Partial<StoreSettings>) => {

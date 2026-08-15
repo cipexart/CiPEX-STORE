@@ -33,6 +33,7 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
       },
       sheets: [
         { properties: { title: "Artworks" } },
+        { properties: { title: "Customer_Orders" } },
         { properties: { title: "Sales_Invoices" } },
         { properties: { title: "Inventory_Log" } },
         { properties: { title: "Store_Settings" } },
@@ -71,6 +72,25 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
               "CertificateNumber (رقم الشهادة)",
               "FrameIncluded (إطار متاح)",
               "CreatedAt (تاريخ الإضافة)"
+            ],
+          ],
+        },
+        {
+          range: "Customer_Orders!A1:L1",
+          values: [
+            [
+              "OrderID (رقم الطلب)",
+              "ArtworkId (معرف اللوحة)",
+              "ArtworkTitle (عنوان اللوحة)",
+              "Dimensions (الأبعاد)",
+              "Price (السعر)",
+              "CustomerName (اسم المقتني)",
+              "CustomerPhone (رقم الهاتف)",
+              "CustomerAddress (عنوان التسليم)",
+              "CustomerEmail (البريد الإلكتروني)",
+              "OrderDate (تاريخ الطلب)",
+              "Status (حالة الطلب)",
+              "Notes (ملاحظات خاصة)"
             ],
           ],
         },
@@ -125,7 +145,7 @@ export async function clientVerifyOrCreateSheet(accessToken: string, spreadsheet
     return {
       spreadsheetId,
       spreadsheetUrl,
-      message: "تم إنشاء جدول بيانات جديد 'CiPEX STORE' وتوصيله بنجاح!",
+      message: "تم إنشاء جدول بيانات جديد 'CiPEX STORE' وتوصيله بنجاح مع صفحة مخصصة لطلبات الاقتناء Customer_Orders!",
     };
   }
 
@@ -160,6 +180,7 @@ export async function clientPushAllToSheet(
     {
       ranges: [
         "Artworks!A2:N1000",
+        "Customer_Orders!A2:L1000",
         "Sales_Invoices!A2:N1000",
         "Inventory_Log!A2:F1000",
         "Store_Settings!A2:B100"
@@ -184,6 +205,22 @@ export async function clientPushAllToSheet(
     item.certificateNumber || "",
     item.frameIncluded ? "نعم" : "لا",
     item.createdAt || new Date().toISOString(),
+  ]);
+
+  // Customer orders (all sales that are orders or pending requests)
+  const orderRows = sales.map((sale) => [
+    sale.invoiceNumber || sale.id || "",
+    sale.artworkId || "",
+    sale.artworkTitle || "",
+    artworks.find((a) => a.id === sale.artworkId)?.dimensions || "50x70 cm",
+    sale.finalPrice || sale.originalPrice || 0,
+    sale.customerName || "",
+    sale.customerPhone || "",
+    sale.customerAddress || "",
+    sale.customerEmail || "",
+    sale.saleDate || new Date().toISOString().split('T')[0],
+    sale.status === 'pending' ? 'طلب جديد - قيد المتابعة' : (sale.status === 'completed' ? 'مكتمل - تم التسليم' : 'ملغي'),
+    sale.notes || "",
   ]);
 
   const salesRows = sales.map((sale) => [
@@ -225,6 +262,10 @@ export async function clientPushAllToSheet(
         values: artworkRows.length > 0 ? artworkRows : [["", "", "", "", "", "", "", "", "", "", "", "", "", ""]],
       },
       {
+        range: "Customer_Orders!A2",
+        values: orderRows.length > 0 ? orderRows : [["", "", "", "", "", "", "", "", "", "", "", ""]],
+      },
+      {
         range: "Sales_Invoices!A2",
         values: salesRows.length > 0 ? salesRows : [["", "", "", "", "", "", "", "", "", "", "", "", "", ""]],
       },
@@ -248,8 +289,55 @@ export async function clientPushAllToSheet(
 
   return {
     success: true,
-    message: "تم حفظ ومزامنة جميع البيانات في Google Sheet بنجاح!",
+    message: "تم حفظ ومزامنة جميع البيانات في Google Sheet بنجاح بما فيها صفحة طلبات الاقتناء Customer_Orders!",
   };
+}
+
+export async function clientAppendOrderToSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  order: {
+    orderId: string;
+    artworkId: string;
+    artworkTitle: string;
+    dimensions?: string;
+    price: number;
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+    customerEmail?: string;
+    orderDate: string;
+    status?: string;
+    notes?: string;
+  }
+) {
+  const row = [
+    order.orderId,
+    order.artworkId,
+    order.artworkTitle,
+    order.dimensions || "50x70 cm",
+    order.price,
+    order.customerName,
+    order.customerPhone,
+    order.customerAddress,
+    order.customerEmail || "",
+    order.orderDate,
+    order.status || "طلب جديد - قيد المتابعة",
+    order.notes || "",
+  ];
+
+  const appendPayload = {
+    range: "Customer_Orders!A2",
+    majorDimension: "ROWS",
+    values: [row],
+  };
+
+  return sheetsApiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Customer_Orders!A2:append?valueInputOption=USER_ENTERED`,
+    "POST",
+    appendPayload,
+    accessToken
+  );
 }
 
 export async function clientPullAllFromSheet(accessToken: string | null, spreadsheetId: string) {

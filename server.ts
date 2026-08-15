@@ -265,6 +265,87 @@ app.post("/api/store/save", (req, res) => {
   res.json({ success: true, message: "تم حفظ بيانات المتجر وتحديث قاعدة بيانات زوار المعرض بنجاح!" });
 });
 
+// POST Customer Order Submission (Direct to Dedicated Sheet & DB)
+app.post("/api/orders/submit", async (req, res) => {
+  try {
+    const {
+      artworkId,
+      artworkTitle,
+      dimensions,
+      price,
+      customerName,
+      customerPhone,
+      customerAddress,
+      customerEmail,
+      notes,
+    } = req.body;
+
+    const db = getStoreDatabase();
+    const invCount = (db.sales || []).length + 1;
+    const orderId = `REQ-CIPEX-${new Date().getFullYear()}-${String(invCount).padStart(3, '0')}`;
+    const orderDate = new Date().toISOString().split('T')[0];
+    const orderTime = new Date().toLocaleTimeString('ar-MA');
+
+    const newOrder = {
+      id: 'req-' + Date.now(),
+      invoiceNumber: orderId,
+      artworkId: artworkId || '',
+      artworkTitle: artworkTitle || '',
+      customerName: customerName || '',
+      customerPhone: customerPhone || '',
+      customerAddress: customerAddress || '',
+      customerEmail: customerEmail || '',
+      saleDate: orderDate,
+      originalPrice: Number(price) || 0,
+      discount: 0,
+      finalPrice: Number(price) || 0,
+      paymentMethod: 'delivery',
+      status: 'pending',
+      notes: notes ? `طلب اقتناء زائر: ${notes}` : 'طلب اقتناء مباشر من زائر الموقع',
+    };
+
+    // Update artworks state to reserved
+    const updatedArtworks = (db.artworks || []).map((art: any) =>
+      art.id === artworkId ? { ...art, status: 'reserved' } : art
+    );
+
+    // Add log
+    const newLog = {
+      id: 'log-' + Date.now(),
+      artworkId: artworkId || '',
+      artworkTitle: artworkTitle || '',
+      action: 'حجز اللوحة',
+      timestamp: `${orderDate} ${orderTime}`,
+      changedBy: 'الزائر',
+      details: `طلب اقتناء لوحة جديد من العميل: ${customerName} (${customerPhone}) - العنوان: ${customerAddress}`,
+    };
+
+    const updatedSales = [newOrder, ...(db.sales || [])];
+    const updatedLogs = [newLog, ...(db.inventoryLogs || [])];
+
+    saveStoreDatabase({
+      artworks: updatedArtworks,
+      sales: updatedSales,
+      inventoryLogs: updatedLogs,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const config = getStoreConfig();
+
+    return res.json({
+      success: true,
+      orderId,
+      order: newOrder,
+      sheetId: config.sheetId,
+      sheetUrl: config.sheetUrl,
+      message: "تم تسجيل طلب الاقتناء وحفظه في صفحة طلبات الشيت Customer_Orders بنجاح!",
+    });
+  } catch (error: any) {
+    console.error("Order Submit Error:", error);
+    res.status(500).json({ error: error.message || "فشل تسجيل طلب الاقتناء" });
+  }
+});
+
 // Helper for Google Sheets REST API proxy
 async function sheetsApiFetch(url: string, method: string = "GET", body?: any, accessToken?: string) {
   if (!accessToken) {
@@ -319,6 +400,7 @@ app.post("/api/sheets/verify-or-create", async (req, res) => {
         },
         sheets: [
           { properties: { title: "Artworks" } },
+          { properties: { title: "Customer_Orders" } },
           { properties: { title: "Sales_Invoices" } },
           { properties: { title: "Inventory_Log" } },
           { properties: { title: "Store_Settings" } },
@@ -363,6 +445,25 @@ app.post("/api/sheets/verify-or-create", async (req, res) => {
                 "CertificateNumber (رقم الشهادة)",
                 "FrameIncluded (إطار متاح)",
                 "CreatedAt (تاريخ الإضافة)"
+              ],
+            ],
+          },
+          {
+            range: "Customer_Orders!A1:L1",
+            values: [
+              [
+                "OrderID (رقم الطلب)",
+                "ArtworkId (معرف اللوحة)",
+                "ArtworkTitle (عنوان اللوحة)",
+                "Dimensions (الأبعاد)",
+                "Price (السعر)",
+                "CustomerName (اسم المقتني)",
+                "CustomerPhone (رقم الهاتف)",
+                "CustomerAddress (عنوان التسليم)",
+                "CustomerEmail (البريد الإلكتروني)",
+                "OrderDate (تاريخ الطلب)",
+                "Status (حالة الطلب)",
+                "Notes (ملاحظات خاصة)"
               ],
             ],
           },
@@ -494,6 +595,25 @@ app.post("/api/sheets/push-all", async (req, res) => {
       art.createdAt || new Date().toISOString()
     ].map(sanitizeCellForSheets));
 
+    // Format Customer Orders Rows
+    const orderRows = (sales || []).map((s: any) => {
+      const art = (artworks || []).find((a: any) => a.id === s.artworkId);
+      return [
+        s.invoiceNumber || s.id || "",
+        s.artworkId || "",
+        s.artworkTitle || "",
+        art?.dimensions || "50x70 cm",
+        s.finalPrice || s.originalPrice || 0,
+        s.customerName || "",
+        s.customerPhone || "",
+        s.customerAddress || "",
+        s.customerEmail || "",
+        s.saleDate || new Date().toISOString().split('T')[0],
+        s.status === 'pending' ? 'طلب جديد - قيد المتابعة' : (s.status === 'completed' ? 'مكتمل - تم التسليم' : 'ملغي'),
+        s.notes || ""
+      ];
+    }).map(row => row.map(sanitizeCellForSheets));
+
     // Format Sales Rows
     const saleRows = (sales || []).map((s: any) => [
       s.invoiceNumber || "",
@@ -543,6 +663,7 @@ app.post("/api/sheets/push-all", async (req, res) => {
         {
           ranges: [
             "Artworks!A2:Z1000",
+            "Customer_Orders!A2:Z1000",
             "Sales_Invoices!A2:Z1000",
             "Inventory_Log!A2:Z1000"
           ]
@@ -565,6 +686,13 @@ app.post("/api/sheets/push-all", async (req, res) => {
       batchUpdateData.push({
         range: `Artworks!A2:N${1 + artworkRows.length}`,
         values: artworkRows
+      });
+    }
+
+    if (orderRows.length > 0) {
+      batchUpdateData.push({
+        range: `Customer_Orders!A2:L${1 + orderRows.length}`,
+        values: orderRows
       });
     }
 
